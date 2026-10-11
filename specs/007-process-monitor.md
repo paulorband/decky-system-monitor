@@ -19,7 +19,6 @@ Motivador principal do plugin: ver **quem** está consumindo CPU e RAM.
 - **REQ-410** Rota própria (`/system-monitor/processes`), aberta por botão "Consumo por processo" no painel; o Quick Access fecha ao abrir.
 - **REQ-411** Controle: topo com dropdown "Ordenar por" (CPU / Memória); abaixo, uma linha focável por grupo. D-pad navega tudo; **B volta** ao jogo/menu. Sem toque necessário.
 - **REQ-412** Tabela com **uma coluna por métrica**: Aplicativo | Proc. | CPU | RAM, com cabeçalho alinhado às linhas e ▼ na coluna usada para ordenar. Nome = nome do jogo via `appStore` do Steam quando há `app_id`, senão o `comm`. Cada linha é um único item focável (D-pad desce linha a linha). Números alinhados à direita; CPU ≥ 25 % em âmbar (o número sempre aparece).
-- **REQ-416** A área rolável termina acima da barra de dicas do Steam (A/B): focar o último item o deixa totalmente visível, sem rolar por toque.
 - **REQ-413** Polling próprio (`get_processes`) **somente enquanto a tela está montada**, no intervalo configurado (mínimo 1 s); ticks não se acumulam.
 - **REQ-414** Rodapé informativo: "RAM = RSS (páginas compartilhadas contam em cada processo)".
 - **REQ-415** Somente leitura: **não** há ação de encerrar processo.
