@@ -9,6 +9,9 @@ export const PROCESS_ROUTE = "/system-monitor/processes";
 
 const getProcesses = callable<[ProcSort, number], { processes: ProcGroup[] }>("get_processes");
 
+const HEADER_H = 40;
+const FOOTER_H = 64;
+
 // One column per metric (REQ-412). Same grid for header and rows keeps them aligned.
 const GRID: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 70px 90px 100px", columnGap: 12, width: "100%", alignItems: "center" };
 const NUM: CSSProperties = { textAlign: "right", fontVariantNumeric: "tabular-nums" };
@@ -57,8 +60,9 @@ export const ProcessPage: FC = () => {
   }, [sort, interval]);
 
   return (
-    // Top margin clears the Steam header; B navigates back by default.
-    <div style={{ marginTop: 40, height: "calc(100% - 40px)", overflowY: "auto" }}>
+    // Scroll area ends above Steam's bottom hint bar (A/B legend) so the focused
+    // last row is never covered (REQ-416); top margin clears the Steam header.
+    <div style={{ marginTop: HEADER_H, height: `calc(100% - ${HEADER_H + FOOTER_H}px)`, overflowY: "auto" }}>
       <PanelSection title="Consumo por processo">
         <PanelSectionRow>
           <DropdownItem
