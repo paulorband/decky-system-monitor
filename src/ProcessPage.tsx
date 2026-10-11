@@ -1,6 +1,6 @@
 import { callable } from "@decky/api";
 import { DropdownItem, Field, Focusable, PanelSection, PanelSectionRow } from "@decky/ui";
-import { FC, useEffect, useState } from "react";
+import { CSSProperties, FC, useEffect, useState } from "react";
 import { mb } from "./format";
 import { useSettings } from "./hooks";
 import { ProcGroup, ProcSort } from "./types";
@@ -8,6 +8,10 @@ import { ProcGroup, ProcSort } from "./types";
 export const PROCESS_ROUTE = "/system-monitor/processes";
 
 const getProcesses = callable<[ProcSort, number], { processes: ProcGroup[] }>("get_processes");
+
+// One column per metric (REQ-412). Same grid for header and rows keeps them aligned.
+const GRID: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 70px 90px 100px", columnGap: 12, width: "100%", alignItems: "center" };
+const NUM: CSSProperties = { textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
 const SORTS = [
   { data: "cpu" as ProcSort, label: "Uso de CPU" },
@@ -70,16 +74,27 @@ export const ProcessPage: FC = () => {
         {!rows && !failed && (
           <PanelSectionRow><Field label="Status" focusable>Carregando…</Field></PanelSectionRow>
         )}
+        {rows && (
+          <PanelSectionRow>
+            <div style={{ ...GRID, opacity: 0.7, fontSize: 12, fontWeight: 600, textTransform: "uppercase", padding: "4px 0" }}>
+              <span>Aplicativo</span>
+              <span style={NUM}>Proc.</span>
+              <span style={NUM}>CPU{sort === "cpu" ? " ▼" : ""}</span>
+              <span style={NUM}>RAM{sort === "mem" ? " ▼" : ""}</span>
+            </div>
+          </PanelSectionRow>
+        )}
         {rows?.map((g) => (
           <PanelSectionRow key={g.key}>
-            <Field
-              focusable
-              label={displayName(g)}
-              description={`${g.count} ${g.count === 1 ? "processo" : "processos"} · ${mb(g.rss_mb)}`}
-            >
-              <span style={{ fontVariantNumeric: "tabular-nums", color: g.cpu !== null && g.cpu >= 25 ? "#ffb300" : undefined }}>
-                {g.cpu === null ? "—" : `${g.cpu.toFixed(1)}%`}
-              </span>
+            <Field focusable childrenContainerWidth="max" bottomSeparator="none">
+              <div style={GRID}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName(g)}</span>
+                <span style={NUM}>{g.count}</span>
+                <span style={{ ...NUM, color: g.cpu !== null && g.cpu >= 25 ? "#ffb300" : undefined }}>
+                  {g.cpu === null ? "—" : `${g.cpu.toFixed(1)}%`}
+                </span>
+                <span style={NUM}>{mb(g.rss_mb)}</span>
+              </div>
             </Field>
           </PanelSectionRow>
         ))}
