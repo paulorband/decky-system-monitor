@@ -13,3 +13,11 @@ Desenvolvimento orientado por specs: veja [`specs/`](specs/). Comece por `000-co
 pnpm i && pnpm build   # frontend
 pnpm test              # backend (pytest)
 ```
+
+## Instalação (teste)
+
+1. Baixe `decky-system-monitor.zip` na página de [Releases](../../releases) (pré-release **test-build** = último commit).
+2. Decky Loader → Configurações → Geral → ative o **Modo desenvolvedor**.
+3. Seção **Desenvolvedor** → **Instalar plugin de um ZIP**.
+
+Release versionada: `git tag v0.1.0-rc1 && git push origin v0.1.0-rc1`.
