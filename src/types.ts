@@ -24,3 +24,13 @@ export const DEFAULT_SETTINGS: Settings = {
   show: { cpu: true, gpu: true, mem: true, battery: true, fan: true },
   overlay: { enabled: false, position: "top-left", compact: true },
 };
+
+export interface ProcGroup {
+  key: string;
+  name: string;
+  app_id?: number;
+  count: number;
+  cpu: number | null;
+  rss_mb: number;
+}
+export type ProcSort = "cpu" | "mem";

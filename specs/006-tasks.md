@@ -8,6 +8,7 @@
 - [x] T6 `Poller` (REQ-300)
 - [x] T7 Painel (REQ-100…106)
 - [x] T8 Overlay (REQ-200…205)
+- [x] T12 Consumo por processo (spec 007): `procmon.py`, testes, `ProcessPage`
 - [ ] T9 Validar em hardware real (SteamOS, Bazzite, CachyOS Handheld)
 - [ ] T10 Métricas de GPU Intel/NVIDIA; FPS (via gamescope) — nova spec
 - [ ] T11 Release/CI (build zip, GitHub Actions)

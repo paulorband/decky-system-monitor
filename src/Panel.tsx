@@ -1,7 +1,8 @@
-import { DropdownItem, Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
+import { ButtonItem, DropdownItem, Field, Navigation, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
 import { FC, ReactNode } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
+import { PROCESS_ROUTE } from "./ProcessPage";
 import { Group, Position } from "./types";
 
 const Val: FC<{ color?: string; children: ReactNode }> = ({ color, children }) => (
@@ -32,6 +33,19 @@ const GROUPS: { key: Group; label: string }[] = [
   { key: "fan", label: "Ventoinha" },
 ];
 
+const OpenProcesses: FC = () => (
+  <PanelSection title="Processos">
+    <PanelSectionRow>
+      <ButtonItem
+        layout="below"
+        onClick={() => { Navigation.CloseSideMenus(); Navigation.Navigate(PROCESS_ROUTE); }}
+      >
+        Consumo por processo
+      </ButtonItem>
+    </PanelSectionRow>
+  </PanelSection>
+);
+
 export const Panel: FC = () => {
   const store = useStore();
   const { stats: s, settings: cfg, error } = store;
@@ -53,6 +67,7 @@ export const Panel: FC = () => {
 
   return (
     <>
+      <OpenProcesses />
       {cfg.show.cpu && s.cpu && (
         <PanelSection title="CPU">
           {s.cpu.usage !== undefined && <Row label="Uso" color={usageColor(s.cpu.usage)}>{pct(s.cpu.usage)}</Row>}
