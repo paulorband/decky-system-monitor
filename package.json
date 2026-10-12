@@ -1,6 +1,6 @@
 {
   "name": "decky-system-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lightweight system resource monitor for Decky Loader (Game Mode).",
   "type": "module",
   "scripts": {
