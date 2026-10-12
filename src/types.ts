@@ -14,11 +14,13 @@ export type Group = "cpu" | "gpu" | "mem" | "battery" | "fan";
 
 export interface Settings {
   interval_ms: number;
+  auto_check: boolean;
   show: Record<Group, boolean>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   interval_ms: 1000,
+  auto_check: true,
   show: { cpu: true, gpu: true, mem: true, battery: true, fan: true },
 };
 

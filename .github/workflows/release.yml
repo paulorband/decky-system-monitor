@@ -41,6 +41,8 @@ jobs:
           VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           case "$VERSION" in v[0-9]*) ;; *) echo "bad version: $VERSION"; exit 1;; esac
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$VERSION" != "$PKG" ]; then echo "tag $VERSION != package.json $PKG"; exit 1; fi
           if gh release view "$VERSION" >/dev/null 2>&1; then echo "$VERSION already exists"; exit 0; fi
           flags=""
           case "$VERSION" in *-*) flags="--prerelease";; esac

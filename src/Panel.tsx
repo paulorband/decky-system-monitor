@@ -2,6 +2,7 @@ import { ButtonItem, DropdownItem, Field, Navigation, PanelSection, PanelSection
 import { FC, ReactNode } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
+import { useUpdates } from "./updates";
 import { t, tBatteryStatus } from "./i18n";
 import { PROCESS_ROUTE } from "./ProcessPage";
 import { Group } from "./types";
@@ -28,6 +29,30 @@ const groups = (): { key: Group; label: string }[] => [
   { key: "fan", label: t("section_fan") },
 ];
 
+const UpdateSection: FC<{ u: ReturnType<typeof useUpdates> }> = ({ u }) => {
+  const { state, busy, message, check, install } = u;
+  return (
+    <PanelSection title={t("section_updates")}>
+      <Row label={t("current_version")}>{state ? `v${state.current}` : "—"}</Row>
+      {state?.available && <Row label={t("latest_version")} color="#4caf50">v{state.latest}</Row>}
+      {state?.checked && !state.available && !state.error && <Row label={t("status")}>{t("up_to_date")}</Row>}
+      {state && !state.checked && <Row label={t("status")}>{t("not_checked")}</Row>}
+      {message && <Row label={t("status")}>{message}</Row>}
+      <PanelSectionRow>
+        {state?.available ? (
+          <ButtonItem layout="below" disabled={busy !== null} onClick={install}>
+            {busy === "install" ? t("installing") : t("install_update", { v: `v${state.latest}` })}
+          </ButtonItem>
+        ) : (
+          <ButtonItem layout="below" disabled={busy !== null} onClick={check}>
+            {busy === "check" ? t("checking") : t("check_now")}
+          </ButtonItem>
+        )}
+      </PanelSectionRow>
+    </PanelSection>
+  );
+};
+
 const OpenProcesses: FC = () => (
   <PanelSection title={t("section_processes")}>
     <PanelSectionRow>
@@ -44,6 +69,7 @@ const OpenProcesses: FC = () => (
 export const Panel: FC = () => {
   const store = useStore();
   const { stats: s, settings: cfg, error } = store;
+  const updates = useUpdates();
 
   if (error && !s) {
     return (
@@ -62,6 +88,7 @@ export const Panel: FC = () => {
 
   return (
     <>
+      {updates.state?.available && <UpdateSection u={updates} />}
       <OpenProcesses />
       {cfg.show.cpu && s.cpu && (
         <PanelSection title={t("section_cpu")}>
@@ -109,6 +136,13 @@ export const Panel: FC = () => {
             onChange={(o) => store.update((c) => ({ ...c, interval_ms: o.data }))}
           />
         </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField
+            label={t("auto_check")}
+            checked={cfg.auto_check}
+            onChange={(v) => store.update((c) => ({ ...c, auto_check: v }))}
+          />
+        </PanelSectionRow>
         {groups().map(({ key, label }) => (
           <PanelSectionRow key={key}>
             <ToggleField
@@ -119,6 +153,7 @@ export const Panel: FC = () => {
           </PanelSectionRow>
         ))}
       </PanelSection>
+      {!updates.state?.available && <UpdateSection u={updates} />}
     </>
   );
 };

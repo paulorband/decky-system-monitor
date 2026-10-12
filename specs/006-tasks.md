@@ -11,5 +11,6 @@
 - [x] T12 Consumo por processo (spec 007): `procmon.py`, testes, `ProcessPage`
 - [x] T13 i18n en/pt-BR/es (spec 008)
 - [x] T9 Validar em hardware real — validado no ROG Xbox Ally (Bazzite): painel, processos, i18n. SteamOS (Steam Deck) e CachyOS Handheld **não testados** (sem hardware); ver README.
+- [ ] T14 Auto update (spec 009) — implementado; validar em hardware (instalar v0.1.x → v0.1.y)
 - [ ] T10 Métricas de GPU Intel/NVIDIA — **adiado até haver hardware para testar** (sem testar não se publica). FPS/overlay via gamescope: **fora de escopo** por decisão do autor.
 - [x] T11 Release/CI (build zip, GitHub Actions)

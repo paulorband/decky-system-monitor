@@ -16,4 +16,6 @@ Princípios inegociáveis. Toda spec e todo PR devem respeitá-los.
    - Sem dependências nativas ou pip; sem root além do que o Decky já fornece.
 4. **Degradação graciosa.** Qualquer falha de leitura de sensor é isolada e não derruba a coleta.
 5. **Spec-driven.** Mudança de comportamento começa em `specs/`. Cada requisito tem ID (`REQ-xxx`) e critérios de aceite verificáveis; testes referenciam os IDs.
-6. **Privacidade.** Nada sai do aparelho. Sem rede, sem telemetria.
+6. **Privacidade.** Nenhuma telemetria, nenhum identificador, nada do aparelho é enviado.
+   - Única exceção de rede: consulta e download de **releases do próprio repositório** no GitHub (spec 009), desligável nas configurações.
+   - Atualização só instala após ação explícita do usuário e com verificação de integridade (SHA-256).
