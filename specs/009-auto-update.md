@@ -42,6 +42,7 @@ Verifica novas versões ao iniciar, avisa o usuário e permite instalar pela tel
 - **REQ-653 Há build de teste novo** se o commit difere do instalado **e** a versão do build não é *menor* que a instalada (evita regressão para versão mais antiga). Sem `build.json` (instalação antiga), assume-se commit desconhecido → oferece.
 - **REQ-654** Com o canal ligado vale o melhor dos dois: se houver build de teste novo, ele é oferecido; senão, uma release estável mais nova (REQ-601). Com o canal desligado o `test-build` é **ignorado**.
 - **REQ-655** Mesma segurança da instalação estável (origem, SHA-256, zip seguro, validação, rollback, REQ-630…639). O backend lê `test_channel` das **suas** configurações, nunca de parâmetro do frontend.
+- **REQ-657 Mesmo commit = oficial**: se o `test-build` foi feito do **mesmo commit** da release estável mais recente (`target_commitish` da release, só quando for um SHA completo), ele é tratado como a release estável: sem rótulo/aviso de teste, e é instalado o *asset* estável. Se o commit instalado já é esse, está atualizado. Sem prova de igualdade (ex.: `target_commitish` é um nome de branch), vale a regra do REQ-654.
 - **REQ-656** UI: o build de teste é rotulado ("v0.2.5 · teste ab12cd3", em âmbar), o botão diz "Instalar build de teste", e o toast de inicialização também diz que é um build de teste. Mudar o canal força nova verificação.
 
 ## Limitações conhecidas

@@ -126,7 +126,8 @@ def fetch_latest(urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
     tag = data.get("tag_name")
     if not parse_version(tag) or data.get("prerelease") or data.get("draft"):
         raise UpdateError("no stable release")
-    info: Dict[str, Any] = {"tag": tag, "version": tag.lstrip("v"), "asset_url": None, "digest": None, "kind": "stable", "commit": None}
+    info: Dict[str, Any] = {"tag": tag, "version": tag.lstrip("v"), "asset_url": None, "digest": None, "kind": "stable",
+            "commit": data.get("target_commitish") if _SHA.match(data.get("target_commitish") or "") else None}
     for a in data.get("assets") or []:
         url = a.get("browser_download_url") or ""
         if a.get("name") == ASSET_NAME and url.startswith(DOWNLOAD_PREFIX):
@@ -272,24 +273,26 @@ def resolve(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_ch
     state: Dict[str, Any] = {"current": current, "available": False, "checked": True,
                              "checked_at": time.time(), "channel": channel}
     errors = []
-    chosen = None
+    s = t = chosen = None
 
-    if test_channel:  # REQ-654: the test build wins when it is new
-        try:
-            t = fetch_test(urlopen)
-            new_commit = bool(t["commit"]) and t["commit"] != build["commit"]
-            not_older = not t["version"] or not is_older(t["version"], current)
-            if t["asset_url"] and new_commit and not_older:
-                chosen = t
-        except Exception as e:
-            errors.append(e)
     try:
         s = fetch_latest(urlopen)
         state["latest"], state["latest_kind"] = s["version"], "stable"
-        if chosen is None and s["asset_url"] and is_newer(s["version"], current):
-            chosen = s
     except Exception as e:
         errors.append(e)
+    if test_channel:
+        try:
+            t = fetch_test(urlopen)
+        except Exception as e:
+            errors.append(e)
+
+    if t and t["asset_url"] and t["commit"] and t["commit"] != build["commit"] \
+            and (not t["version"] or not is_older(t["version"], current)):
+        # REQ-657: a test build made from the very commit of the stable release IS that release.
+        same_as_stable = bool(s and s["asset_url"] and s["commit"] == t["commit"])
+        chosen = s if same_as_stable else t  # REQ-654 otherwise: the test build wins
+    if chosen is None and s and s["asset_url"] and is_newer(s["version"], current):
+        chosen = s
 
     if chosen:
         state["available"] = True
@@ -297,7 +300,7 @@ def resolve(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_ch
         state["latest_kind"] = chosen["kind"]
         if chosen["kind"] == "test":
             state["commit"] = chosen["commit"][:7]
-    elif errors and ("latest" not in state):
+    elif errors and s is None and t is None:
         state["error"] = _err(errors[0])  # REQ-602: nothing could be checked
     return state, chosen
 

@@ -57,7 +57,7 @@ def fake_urlopen(release=None, zip_bytes=b"", test_release=None):
     return _open
 
 
-def release(zip_bytes, tag="v0.2.0", **kw):
+def release(zip_bytes, tag="v0.2.0", commit=None, **kw):
     a = {
         "name": updater.ASSET_NAME,
         "browser_download_url": updater.DOWNLOAD_PREFIX + f"{tag}/{updater.ASSET_NAME}",
@@ -65,6 +65,8 @@ def release(zip_bytes, tag="v0.2.0", **kw):
     }
     a.update(kw.pop("asset", {}))
     r = {"tag_name": tag, "prerelease": False, "draft": False, "assets": [a]}
+    if commit:
+        r["target_commitish"] = commit
     r.update(kw)
     return r
 
@@ -396,3 +398,58 @@ def test_read_build_robust(tmp_path):
     assert updater.read_build(d)["commit"] is None
     set_build(d, "short")
     assert updater.read_build(d)["commit"] is None  # not a full sha
+
+
+# ---------------- REQ-657: same commit => treated as the stable release ----------------
+def test_test_build_with_stable_commit_is_labelled_stable_REQ657(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1", commit=SHA_B), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    st = updater.check(d, uo, test_channel=True)
+    assert st["available"] and st["latest_kind"] == "stable" and "commit" not in st  # no test label/warning
+
+
+def test_same_commit_as_stable_installs_the_stable_asset_REQ657(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    files = good_files("0.1.1")
+    files["build.json"] = json.dumps({"version": "0.1.1", "commit": SHA_B})
+    z = make_zip(files)
+    uo = fake_urlopen(release(z, tag="v0.1.1", commit=SHA_B), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    assert updater.install(d, uo, test_channel=True) == "0.1.1"
+    assert updater.read_build(d)["commit"] == SHA_B
+
+
+def test_installed_commit_equals_shared_commit_is_up_to_date_REQ657(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_B)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1", commit=SHA_B), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    assert not updater.check(d, uo, test_channel=True)["available"]
+
+
+def test_different_commits_still_label_test_REQ654(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1", commit=SHA_A), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    st = updater.check(d, uo, test_channel=True)
+    assert st["available"] and st["latest_kind"] == "test"
+
+
+def test_stable_commit_unknown_branch_name_is_not_merged_REQ657(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1", commit="main"), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    assert updater.check(d, uo, test_channel=True)["latest_kind"] == "test"  # cannot prove equality
+
+
+def test_test_channel_ok_even_if_stable_fetch_fails_REQ654(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(None, z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))  # stable API offline
+    st = updater.check(d, uo, test_channel=True)
+    assert st["available"] and st["latest_kind"] == "test" and "error" not in st
