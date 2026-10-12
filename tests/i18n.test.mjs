@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  DICTIONARIES, resolveLocale, mapLanguage, getLanguageInfo, getLanguageSources, setBackendLanguage, setLanguagePreference, t, tBatteryStatus, tProcesses, fmtNum,
+  DICTIONARIES, resolveLocale, mapLanguage, getLanguageInfo, getLanguageSources, setLanguagePreference, t, tBatteryStatus, tProcesses, fmtNum,
 } from "../src/i18n.ts";
 
 test("REQ-502 steam language mapping", () => {
@@ -53,22 +53,19 @@ test("REQ-502 accepts both Steam names and BCP-47 codes", () => {
   ]) assert.equal(mapLanguage(tag), want, tag);
 });
 
-test("REQ-509 auto order: Steam UI, then registry, then browser", () => {
+test("REQ-509 auto order: Steam UI, then browser, then English (real Ally values)", () => {
   setLanguagePreference("auto");
-  globalThis.LocalizationManager = { m_rgLocalesToUse: ["english"] };
-  setBackendLanguage("brazilian");   // registry disagrees (the real Ally case)
-  assert.deepEqual(getLanguageInfo(), { locale: "en", source: "steam-ui", raw: "english" });
+  for (const [steam, want] of [["en", "en"], ["pt-br", "pt-BR"], ["es", "es"], ["de", "en"]]) {
+    globalThis.LocalizationManager = { m_rgLocalesToUse: [steam] };
+    assert.deepEqual(getLanguageInfo(), { locale: want, source: "steam-ui", raw: steam }, steam);
+  }
   delete globalThis.LocalizationManager;
-  assert.deepEqual(getLanguageInfo(), { locale: "pt-BR", source: "registry", raw: "brazilian" });
-  setBackendLanguage(null);
-  const src = getLanguageSources();
-  assert.equal(src.steamUi, null); assert.equal(src.registry, null);
+  assert.deepEqual(getLanguageSources().steamUi, null);
   assert.ok(["browser", "default"].includes(getLanguageInfo().source));
 });
 
 test("REQ-510 explicit choice beats every detection source", () => {
   globalThis.LocalizationManager = { m_rgLocalesToUse: ["english"] };
-  setBackendLanguage("brazilian");
   for (const [pref, title] of [["en", "System Monitor"], ["pt-BR", "Monitor do Sistema"], ["es", "Monitor del sistema"]]) {
     setLanguagePreference(pref);
     assert.deepEqual(getLanguageInfo(), { locale: pref, source: "setting", raw: pref });
@@ -79,18 +76,15 @@ test("REQ-510 explicit choice beats every detection source", () => {
   setLanguagePreference("fr");        // invalid -> auto
   assert.equal(getLanguageInfo().source, "steam-ui");
   setLanguagePreference(undefined);
-  delete globalThis.LocalizationManager; setBackendLanguage(null);
+  delete globalThis.LocalizationManager;
 });
 
-test("language can change at runtime (no sticky cache)", () => {
+test("language follows Steam at runtime (no sticky cache)", () => {
   setLanguagePreference("auto");
-  setBackendLanguage("english");
-  assert.equal(t("title"), "System Monitor");
-  setBackendLanguage("brazilian");
-  assert.equal(t("title"), "Monitor do Sistema");
-  setBackendLanguage("spanish");
-  assert.equal(t("title"), "Monitor del sistema");
-  setBackendLanguage("english");
-  assert.equal(t("title"), "System Monitor");
-  setBackendLanguage(null);
+  const set = (v) => { globalThis.LocalizationManager = { m_rgLocalesToUse: [v] }; };
+  set("en");    assert.equal(t("title"), "System Monitor");
+  set("pt-br"); assert.equal(t("title"), "Monitor do Sistema");
+  set("es");    assert.equal(t("title"), "Monitor del sistema");
+  set("en");    assert.equal(t("title"), "System Monitor");
+  delete globalThis.LocalizationManager;
 });

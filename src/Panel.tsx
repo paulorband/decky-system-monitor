@@ -1,10 +1,9 @@
 import { ButtonItem, ConfirmModal, DropdownItem, Field, Focusable, Navigation, PanelSection, PanelSectionRow, ToggleField, showModal } from "@decky/ui";
-import { FC, ReactNode, useEffect, useState } from "react";
+import { FC, ReactNode } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
 import { useUpdates } from "./updates";
 import { getLanguageInfo, getLanguageSources, t, tBatteryStatus } from "./i18n";
-import { initLanguage } from "./language";
 import { PROCESS_ROUTE } from "./ProcessPage";
 import { Group } from "./types";
 
@@ -90,9 +89,6 @@ export const Panel: FC = () => {
   const store = useStore();
   const { stats: s, settings: cfg, error } = store;
   const updates = useUpdates();
-  const [, rerender] = useState(0);
-  // The backend language may arrive after the first render: redraw once it does.
-  useEffect(() => { initLanguage().then(() => rerender((n) => n + 1)); }, []);
 
   if (error && !s) {
     return (
@@ -202,7 +198,7 @@ export const Panel: FC = () => {
           const src = getLanguageSources(); // REQ-511: what each source says, for diagnosis
           return (
             <Note>
-              {t("lang_sources", { u: src.steamUi ?? "—", r: src.registry ?? "—", b: src.browser ?? "—" })}
+              {t("lang_sources", { u: src.steamUi ?? "—", b: src.browser ?? "—" })}
               {` → ${getLanguageInfo().locale}`}
             </Note>
           );
