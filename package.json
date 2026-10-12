@@ -7,7 +7,7 @@
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "typecheck": "tsc --noEmit",
-    "test": "python3 -m pytest -q tests"
+    "test": "python3 -m pytest -q tests && node --experimental-strip-types --test tests/i18n.test.mjs"
   },
   "license": "GPL-3.0-or-later",
   "dependencies": {

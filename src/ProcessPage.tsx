@@ -3,6 +3,7 @@ import { DropdownItem, Field, Focusable, PanelSection, PanelSectionRow } from "@
 import { CSSProperties, FC, useEffect, useState } from "react";
 import { mb } from "./format";
 import { useSettings } from "./hooks";
+import { fmtNum, t, tProcesses } from "./i18n";
 import { ProcGroup, ProcSort } from "./types";
 
 export const PROCESS_ROUTE = "/system-monitor/processes";
@@ -13,10 +14,6 @@ const getProcesses = callable<[ProcSort, number], { processes: ProcGroup[] }>("g
 const GRID: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 70px 90px 100px", columnGap: 12, width: "100%", alignItems: "center" };
 const NUM: CSSProperties = { textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
-const SORTS = [
-  { data: "cpu" as ProcSort, label: "Uso de CPU" },
-  { data: "mem" as ProcSort, label: "Memória (RAM)" },
-];
 
 /** REQ-412: game name from Steam when we have an app id; falls back to comm. */
 function displayName(g: ProcGroup): string {
@@ -25,7 +22,7 @@ function displayName(g: ProcGroup): string {
       const o = (window as any).appStore?.GetAppOverviewByAppID?.(g.app_id);
       if (o?.display_name) return o.display_name;
     } catch { /* fall through */ }
-    return `${g.name} (App ${g.app_id})`;
+    return t("app_fallback", { name: g.name, id: g.app_id });
   }
   return g.name;
 }
@@ -59,26 +56,29 @@ export const ProcessPage: FC = () => {
   return (
     // Top margin clears the Steam header; B navigates back by default.
     <div style={{ marginTop: 40, height: "calc(100% - 40px)", overflowY: "auto" }}>
-      <PanelSection title="Consumo por processo">
+      <PanelSection title={t("proc_title")}>
         <PanelSectionRow>
           <DropdownItem
-            label="Ordenar por"
-            rgOptions={SORTS}
+            label={t("sort_by")}
+            rgOptions={[
+              { data: "cpu" as ProcSort, label: t("sort_cpu") },
+              { data: "mem" as ProcSort, label: t("sort_mem") },
+            ]}
             selectedOption={sort}
             onChange={(o) => setSort(o.data)}
           />
         </PanelSectionRow>
         {failed && !rows && (
-          <PanelSectionRow><Field label="Status" focusable>Backend indisponível</Field></PanelSectionRow>
+          <PanelSectionRow><Field label={t("status")} focusable>{t("backend_unavailable")}</Field></PanelSectionRow>
         )}
         {!rows && !failed && (
-          <PanelSectionRow><Field label="Status" focusable>Carregando…</Field></PanelSectionRow>
+          <PanelSectionRow><Field label={t("status")} focusable>{t("loading")}</Field></PanelSectionRow>
         )}
         {rows && (
           <PanelSectionRow>
             <div style={{ ...GRID, opacity: 0.7, fontSize: 12, fontWeight: 600, textTransform: "uppercase", padding: "4px 0" }}>
-              <span>Aplicativo</span>
-              <span style={NUM}>Proc.</span>
+              <span>{t("col_app")}</span>
+              <span style={NUM}>{t("col_proc")}</span>
               <span style={NUM}>CPU{sort === "cpu" ? " ▼" : ""}</span>
               <span style={NUM}>RAM{sort === "mem" ? " ▼" : ""}</span>
             </div>
@@ -89,9 +89,9 @@ export const ProcessPage: FC = () => {
             <Field focusable childrenContainerWidth="max" bottomSeparator="none">
               <div style={GRID}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName(g)}</span>
-                <span style={NUM}>{g.count}</span>
+                <span style={NUM} title={tProcesses(g.count)}>{g.count}</span>
                 <span style={{ ...NUM, color: g.cpu !== null && g.cpu >= 25 ? "#ffb300" : undefined }}>
-                  {g.cpu === null ? "—" : `${g.cpu.toFixed(1)}%`}
+                  {g.cpu === null ? "—" : `${fmtNum(g.cpu, 1)}%`}
                 </span>
                 <span style={NUM}>{mb(g.rss_mb)}</span>
               </div>
@@ -100,7 +100,7 @@ export const ProcessPage: FC = () => {
         ))}
         <PanelSectionRow>
           <Focusable style={{ opacity: 0.7, fontSize: 12, padding: "8px 0" }}>
-            CPU = % da capacidade total. RAM = RSS (páginas compartilhadas contam em cada processo).
+            {t("proc_footnote")}
           </Focusable>
         </PanelSectionRow>
       </PanelSection>

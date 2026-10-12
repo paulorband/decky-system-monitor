@@ -2,6 +2,7 @@ import { ButtonItem, DropdownItem, Field, Navigation, PanelSection, PanelSection
 import { FC, ReactNode } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
+import { t, tBatteryStatus } from "./i18n";
 import { PROCESS_ROUTE } from "./ProcessPage";
 import { Group, Position } from "./types";
 
@@ -19,28 +20,28 @@ const Row: FC<{ label: string; color?: string; children: ReactNode }> = ({ label
 );
 
 const INTERVALS = [500, 1000, 2000, 5000];
-const POSITIONS: { data: Position; label: string }[] = [
-  { data: "top-left", label: "Superior esquerdo" },
-  { data: "top-right", label: "Superior direito" },
-  { data: "bottom-left", label: "Inferior esquerdo" },
-  { data: "bottom-right", label: "Inferior direito" },
+const positions = (): { data: Position; label: string }[] => [
+  { data: "top-left", label: t("pos_top_left") },
+  { data: "top-right", label: t("pos_top_right") },
+  { data: "bottom-left", label: t("pos_bottom_left") },
+  { data: "bottom-right", label: t("pos_bottom_right") },
 ];
-const GROUPS: { key: Group; label: string }[] = [
-  { key: "cpu", label: "CPU" },
-  { key: "gpu", label: "GPU" },
-  { key: "mem", label: "Memória" },
-  { key: "battery", label: "Bateria / consumo" },
-  { key: "fan", label: "Ventoinha" },
+const groups = (): { key: Group; label: string }[] => [
+  { key: "cpu", label: t("section_cpu") },
+  { key: "gpu", label: t("section_gpu") },
+  { key: "mem", label: t("section_memory") },
+  { key: "battery", label: t("group_battery") },
+  { key: "fan", label: t("section_fan") },
 ];
 
 const OpenProcesses: FC = () => (
-  <PanelSection title="Processos">
+  <PanelSection title={t("section_processes")}>
     <PanelSectionRow>
       <ButtonItem
         layout="below"
         onClick={() => { Navigation.CloseSideMenus(); Navigation.Navigate(PROCESS_ROUTE); }}
       >
-        Consumo por processo
+        {t("open_processes")}
       </ButtonItem>
     </PanelSectionRow>
   </PanelSection>
@@ -52,15 +53,15 @@ export const Panel: FC = () => {
 
   if (error && !s) {
     return (
-      <PanelSection title="Monitor do Sistema">
-        <Row label="Status">Backend indisponível</Row>
+      <PanelSection title={t("title")}>
+        <Row label={t("status")}>{t("backend_unavailable")}</Row>
       </PanelSection>
     );
   }
   if (!s) {
     return (
-      <PanelSection title="Monitor do Sistema">
-        <Row label="Status">Carregando…</Row>
+      <PanelSection title={t("title")}>
+        <Row label={t("status")}>{t("loading")}</Row>
       </PanelSection>
     );
   }
@@ -69,52 +70,52 @@ export const Panel: FC = () => {
     <>
       <OpenProcesses />
       {cfg.show.cpu && s.cpu && (
-        <PanelSection title="CPU">
-          {s.cpu.usage !== undefined && <Row label="Uso" color={usageColor(s.cpu.usage)}>{pct(s.cpu.usage)}</Row>}
-          {s.cpu.freq_mhz !== undefined && <Row label="Frequência">{mhz(s.cpu.freq_mhz)}</Row>}
-          {s.cpu.temp_c !== undefined && <Row label="Temperatura" color={tempColor(s.cpu.temp_c)}>{temp(s.cpu.temp_c)}</Row>}
+        <PanelSection title={t("section_cpu")}>
+          {s.cpu.usage !== undefined && <Row label={t("usage")} color={usageColor(s.cpu.usage)}>{pct(s.cpu.usage)}</Row>}
+          {s.cpu.freq_mhz !== undefined && <Row label={t("frequency")}>{mhz(s.cpu.freq_mhz)}</Row>}
+          {s.cpu.temp_c !== undefined && <Row label={t("temperature")} color={tempColor(s.cpu.temp_c)}>{temp(s.cpu.temp_c)}</Row>}
         </PanelSection>
       )}
       {cfg.show.gpu && s.gpu && (
-        <PanelSection title="GPU">
-          {s.gpu.usage !== undefined && <Row label="Uso" color={usageColor(s.gpu.usage)}>{pct(s.gpu.usage)}</Row>}
-          {s.gpu.freq_mhz !== undefined && <Row label="Clock">{mhz(s.gpu.freq_mhz)}</Row>}
-          {s.gpu.temp_c !== undefined && <Row label="Temperatura" color={tempColor(s.gpu.temp_c)}>{temp(s.gpu.temp_c)}</Row>}
-          {s.gpu.power_w !== undefined && <Row label="Potência">{watts(s.gpu.power_w)}</Row>}
+        <PanelSection title={t("section_gpu")}>
+          {s.gpu.usage !== undefined && <Row label={t("usage")} color={usageColor(s.gpu.usage)}>{pct(s.gpu.usage)}</Row>}
+          {s.gpu.freq_mhz !== undefined && <Row label={t("clock")}>{mhz(s.gpu.freq_mhz)}</Row>}
+          {s.gpu.temp_c !== undefined && <Row label={t("temperature")} color={tempColor(s.gpu.temp_c)}>{temp(s.gpu.temp_c)}</Row>}
+          {s.gpu.power_w !== undefined && <Row label={t("power")}>{watts(s.gpu.power_w)}</Row>}
           {s.gpu.vram_total_mb !== undefined && (
             <Row label="VRAM">{mb(s.gpu.vram_used_mb)} / {mb(s.gpu.vram_total_mb)}</Row>
           )}
         </PanelSection>
       )}
       {cfg.show.mem && s.mem && (
-        <PanelSection title="Memória">
+        <PanelSection title={t("section_memory")}>
           <Row label="RAM" color={usageColor(s.mem.percent)}>{mb(s.mem.used_mb)} / {mb(s.mem.total_mb)} ({pct(s.mem.percent)})</Row>
           {s.swap && <Row label="Swap">{mb(s.swap.used_mb)} / {mb(s.swap.total_mb)}</Row>}
         </PanelSection>
       )}
       {cfg.show.battery && s.battery && (
-        <PanelSection title="Bateria">
-          {s.battery.percent !== undefined && <Row label="Carga">{pct(s.battery.percent)}</Row>}
-          {s.battery.status && <Row label="Estado">{s.battery.status}</Row>}
-          {s.battery.power_w !== undefined && <Row label="Consumo">{watts(s.battery.power_w)}</Row>}
+        <PanelSection title={t("section_battery")}>
+          {s.battery.percent !== undefined && <Row label={t("charge")}>{pct(s.battery.percent)}</Row>}
+          {s.battery.status && <Row label={t("state")}>{tBatteryStatus(s.battery.status)}</Row>}
+          {s.battery.power_w !== undefined && <Row label={t("consumption")}>{watts(s.battery.power_w)}</Row>}
         </PanelSection>
       )}
       {cfg.show.fan && s.fan && (
-        <PanelSection title="Ventoinha">
-          <Row label="Rotação">{s.fan.rpm} RPM</Row>
+        <PanelSection title={t("section_fan")}>
+          <Row label={t("rotation")}>{s.fan.rpm} RPM</Row>
         </PanelSection>
       )}
 
-      <PanelSection title="Configurações">
+      <PanelSection title={t("section_settings")}>
         <PanelSectionRow>
           <DropdownItem
-            label="Intervalo de atualização"
+            label={t("update_interval")}
             rgOptions={INTERVALS.map((v) => ({ data: v, label: v < 1000 ? `${v} ms` : `${v / 1000} s` }))}
             selectedOption={cfg.interval_ms}
             onChange={(o) => store.update((c) => ({ ...c, interval_ms: o.data }))}
           />
         </PanelSectionRow>
-        {GROUPS.map(({ key, label }) => (
+        {groups().map(({ key, label }) => (
           <PanelSectionRow key={key}>
             <ToggleField
               label={label}
@@ -125,7 +126,7 @@ export const Panel: FC = () => {
         ))}
         <PanelSectionRow>
           <ToggleField
-            label="Overlay no jogo"
+            label={t("overlay_ingame")}
             checked={cfg.overlay.enabled}
             onChange={(v) => store.update((c) => ({ ...c, overlay: { ...c.overlay, enabled: v } }))}
           />
@@ -134,15 +135,15 @@ export const Panel: FC = () => {
           <>
             <PanelSectionRow>
               <DropdownItem
-                label="Posição do overlay"
-                rgOptions={POSITIONS}
+                label={t("overlay_position")}
+                rgOptions={positions()}
                 selectedOption={cfg.overlay.position}
                 onChange={(o) => store.update((c) => ({ ...c, overlay: { ...c.overlay, position: o.data } }))}
               />
             </PanelSectionRow>
             <PanelSectionRow>
               <ToggleField
-                label="Overlay compacto"
+                label={t("overlay_compact")}
                 checked={cfg.overlay.compact}
                 onChange={(v) => store.update((c) => ({ ...c, overlay: { ...c.overlay, compact: v } }))}
               />
