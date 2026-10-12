@@ -1,4 +1,4 @@
-import { ButtonItem, ConfirmModal, DropdownItem, Field, Navigation, PanelSection, PanelSectionRow, ToggleField, showModal } from "@decky/ui";
+import { ButtonItem, ConfirmModal, DropdownItem, Field, Focusable, Navigation, PanelSection, PanelSectionRow, ToggleField, showModal } from "@decky/ui";
 import { FC, ReactNode, useEffect, useState } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
@@ -18,6 +18,13 @@ const Row: FC<{ label: string; color?: string; children: ReactNode }> = ({ label
     <Field label={label} focusable>
       <Val color={color}>{children}</Val>
     </Field>
+  </PanelSectionRow>
+);
+
+/** Full-width, focusable text block for sentences (a label/value Field squeezes them into half the width). */
+const Note: FC<{ color?: string; children: ReactNode }> = ({ color, children }) => (
+  <PanelSectionRow>
+    <Focusable style={{ color, fontSize: 13, lineHeight: 1.35, padding: "6px 0", width: "100%" }}>{children}</Focusable>
   </PanelSectionRow>
 );
 
@@ -43,7 +50,7 @@ const UpdateSection: FC<{ u: ReturnType<typeof useUpdates> }> = ({ u }) => {
       )}
       {state?.checked && !state.available && !state.error && <Row label={t("status")}>{t("up_to_date")}</Row>}
       {state && !state.checked && <Row label={t("status")}>{t("not_checked")}</Row>}
-      {message && <Row label={t("status")}>{message}</Row>}
+      {message && <Note>{message}</Note>}
       <PanelSectionRow>
         {state?.available ? (
           <ButtonItem layout="below" disabled={busy !== null} onClick={install}>
@@ -163,7 +170,7 @@ export const Panel: FC = () => {
             }}
           />
         </PanelSectionRow>
-        {cfg.test_channel && <Row label="⚠" color="#ffb300">{t("test_channel_warning")}</Row>}
+        {cfg.test_channel && <Note color="#ffb300">{t("test_channel_hint")}</Note>}
         <PanelSectionRow>
           <ToggleField
             label={t("auto_check")}
