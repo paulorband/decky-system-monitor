@@ -28,7 +28,7 @@ Release versionada: `git tag v0.1.0 && git push origin v0.1.0`, ou Actions → *
 
 | Hardware / distro | Estado |
 |---|---|
-| ROG Xbox Ally (AMD) — Bazzite | Validado: todas as funcionalidades |
+| ROG Xbox Ally (AMD) — Bazzite | Validado: painel, processos, idiomas e auto update |
 | Steam Deck — SteamOS | Não testado (a detecção é por sensores, deve funcionar) |
 | CachyOS Handheld | Não testado |
 | GPU Intel / NVIDIA | Adiado: GPU exibida só para AMD (`amdgpu`); CPU, RAM, bateria e processos funcionam em qualquer hardware |
