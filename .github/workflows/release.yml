@@ -5,6 +5,11 @@ on:
     branches: [main, "claude/**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to create (e.g. v0.1.0 or v0.2.0-rc1). Empty = only refresh test-build."
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -28,20 +33,23 @@ jobs:
           name: decky-system-monitor
           path: release/decky-system-monitor.zip
 
-      # Tag vX.Y.Z -> release (prerelease if the tag contains "-", e.g. v0.1.0-rc1)
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Tag push, or manual run with `version` -> release (prerelease if the tag contains "-").
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.version != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version || github.ref_name }}
         run: |
+          case "$VERSION" in v[0-9]*) ;; *) echo "bad version: $VERSION"; exit 1;; esac
+          if gh release view "$VERSION" >/dev/null 2>&1; then echo "$VERSION already exists"; exit 0; fi
           flags=""
-          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease";; esac
-          gh release create "$GITHUB_REF_NAME" release/decky-system-monitor.zip \
-            --title "$GITHUB_REF_NAME" --generate-notes $flags
+          case "$VERSION" in *-*) flags="--prerelease";; esac
+          gh release create "$VERSION" release/decky-system-monitor.zip \
+            --target "$GITHUB_SHA" --title "$VERSION" --generate-notes $flags
 
       # Branch push / manual run -> rolling "test-build" prerelease for device testing
       - name: Publish rolling test build
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.version == '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

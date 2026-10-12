@@ -21,7 +21,7 @@ pnpm test              # backend (pytest)
 2. Decky Loader → Configurações → Geral → ative o **Modo desenvolvedor**.
 3. Seção **Desenvolvedor** → **Instalar plugin de um ZIP**.
 
-Release versionada: `git tag v0.1.0-rc1 && git push origin v0.1.0-rc1`.
+Release versionada: `git tag v0.1.0 && git push origin v0.1.0`, ou Actions → *Build & release* → *Run workflow* informando `version` (ex.: `v0.1.0`).
 
 ## Compatibilidade
 
