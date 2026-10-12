@@ -88,7 +88,6 @@ export const Panel: FC = () => {
 
   return (
     <>
-      {updates.state?.available && <UpdateSection u={updates} />}
       <OpenProcesses />
       {cfg.show.cpu && s.cpu && (
         <PanelSection title={t("section_cpu")}>
@@ -153,7 +152,7 @@ export const Panel: FC = () => {
           </PanelSectionRow>
         ))}
       </PanelSection>
-      {!updates.state?.available && <UpdateSection u={updates} />}
+      <UpdateSection u={updates} />
     </>
   );
 };

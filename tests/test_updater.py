@@ -235,3 +235,12 @@ def test_cert_error_retries_with_alternative_bundle_only(monkeypatch, tmp_path):
         raise urllib.error.URLError(OSError("offline"))
     with pytest.raises(urllib.error.URLError):  # non-cert errors are not retried
         updater._open("https://x", offline, "a")
+
+
+def test_not_writable_fails_before_touching_anything_REQ638(tmp_path, monkeypatch):
+    d = installed(tmp_path)
+    z = make_zip(good_files())
+    monkeypatch.setattr(updater.os, "access", lambda p, m: False)
+    with pytest.raises(UpdateError, match="root"):
+        updater.install(d, fake_urlopen(release(z), z))
+    assert open(os.path.join(d, "main.py")).read() == "# old"

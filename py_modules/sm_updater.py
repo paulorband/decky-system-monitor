@@ -234,6 +234,8 @@ def check(plugin_dir: str, urlopen: Callable = urllib.request.urlopen) -> Dict[s
 
 def install(plugin_dir: str, urlopen: Callable = urllib.request.urlopen) -> str:
     """REQ-630: refetch, require newer, download, verify, validate, apply. Returns new version."""
+    if not os.access(plugin_dir, os.W_OK) or not os.access(os.path.dirname(os.path.abspath(plugin_dir)), os.W_OK):
+        raise UpdateError("plugin folder is not writable: the backend must run as root (plugin.json flags)")
     current = read_version(plugin_dir)
     info = fetch_latest(urlopen)
     if not is_newer(info["version"], current):

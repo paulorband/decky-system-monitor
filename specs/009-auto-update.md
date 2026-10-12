@@ -16,7 +16,7 @@ Verifica novas versões ao iniciar, avisa o usuário e permite instalar pela tel
 
 ### Tela de estatísticas (painel)
 - **REQ-620** Seção "Atualizações" mostra: versão atual; versão nova (quando houver); estado ("Atualizado" quando checado e sem novidade); botão **Instalar vX.Y.Z** (se houver) ou **Verificar agora** (se não).
-- **REQ-621** Com atualização disponível, a seção sobe para o **topo** do painel; caso contrário fica no fim.
+- **REQ-621** A seção fica **sempre no fim** do painel (o aviso de versão nova chega pelo toast da inicialização).
 - **REQ-622** Tudo focável e operável por controle (linhas `Field` focáveis, `ButtonItem`). Botões ficam desabilitados durante a operação; mensagem de resultado como linha focável.
 
 ### Instalação
@@ -28,6 +28,8 @@ Verifica novas versões ao iniciar, avisa o usuário e permite instalar pela tel
 - **REQ-635 Aplicação com rollback**: os itens (`plugin.json`, `package.json`, `main.py`, `LICENSE`, `dist/`, `py_modules/`) são copiados sobre a pasta instalada; backup prévio, restaurado se qualquer passo falhar.
 - **REQ-636** Após sucesso, o backend agenda a reinicialização do Decky (`systemctl restart plugin_loader`, destacada, com pequeno atraso) para carregar a nova versão; a UI informa antes.
 - **REQ-637** Instalações concorrentes são recusadas.
+- **REQ-638 Privilégio**: o backend de um plugin Decky roda como `deck`, que não escreve em `~/homebrew/plugins` (root) nem reinicia o `plugin_loader`. Por isso o `plugin.json` declara `"flags": ["root"]`. Se a pasta não for gravável, a instalação falha **antes de tocar em qualquer arquivo** com mensagem explícita.
+- **REQ-639** Quem está numa versão sem a flag `root` (≤ v0.2.1) precisa instalar uma vez o ZIP manualmente; dali em diante o botão funciona.
 
 ### Publicação (CI)
 - **REQ-640** O workflow de release falha se a tag não for igual a `v` + versão do `package.json` (evita oferecer a mesma versão para sempre).
