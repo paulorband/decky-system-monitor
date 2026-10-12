@@ -1,0 +1,23 @@
+import { definePlugin, routerHook } from "@decky/api";
+import { staticClasses } from "@decky/ui";
+import { FaMicrochip } from "react-icons/fa";
+import { initLanguage } from "./language";
+import { t } from "./i18n";
+import { startupUpdateCheck } from "./updates";
+import { Panel } from "./Panel";
+import { PROCESS_ROUTE, ProcessPage } from "./ProcessPage";
+
+export default definePlugin(() => {
+  initLanguage();
+  startupUpdateCheck();
+  routerHook.addRoute(PROCESS_ROUTE, ProcessPage);
+  return {
+    name: t("title"),
+    titleView: <div className={staticClasses.Title}>{t("title")}</div>,
+    content: <Panel />,
+    icon: <FaMicrochip />,
+    onDismount() {
+      routerHook.removeRoute(PROCESS_ROUTE);
+    },
+  };
+});

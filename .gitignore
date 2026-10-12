@@ -147,3 +147,8 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+node_modules/
+dist/
+__pycache__/
+.pytest_cache/
+release/
