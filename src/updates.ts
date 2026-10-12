@@ -55,9 +55,16 @@ export function useUpdates() {
     setBusy("install"); setMessage(null);
     try {
       const r = await installUpdate();
-      if (r.ok) setMessage(t("install_ok", { v: `v${r.version}` }));
-      else setMessage(t("install_failed", { e: r.error ?? "?" }));
-      if (!r.ok) setBusy(null); // on success stay disabled: Decky is about to restart
+      if (r.ok) {
+        setMessage(t("install_ok", { v: `v${r.version}` }));
+        // If Decky does not restart on its own, stop waiting forever and say what to do.
+        setTimeout(() => {
+          setMessage(t("restart_hint"));
+          setBusy(null);
+          setState((p) => (p ? { ...p, available: false } : p));
+        }, 20000);
+      }
+      else { setMessage(t("install_failed", { e: r.error ?? "?" })); setBusy(null); }
     } catch (e) {
       setMessage(t("install_failed", { e: String(e) }));
       setBusy(null);

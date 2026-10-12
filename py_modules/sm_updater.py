@@ -251,10 +251,29 @@ def install(plugin_dir: str, urlopen: Callable = urllib.request.urlopen) -> str:
     return info["version"]
 
 
-def schedule_decky_restart(delay: int = 3) -> None:
-    """REQ-636: detached, so it survives our own process being stopped."""
+def clean_env(env=None) -> Dict[str, str]:
+    """Decky is a frozen (PyInstaller) app: its LD_LIBRARY_PATH breaks system binaries like systemctl."""
+    env = dict(os.environ if env is None else env)
+    orig = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    for k in ("LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONHOME", "PYTHONPATH"):
+        env.pop(k, None)
+    if orig:
+        env["LD_LIBRARY_PATH"] = orig
+    env["PATH"] = ":".join(filter(None, [env.get("PATH"), "/usr/local/sbin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"]))
+    return env
+
+
+def schedule_decky_restart(log_path: str = "/tmp/sysmon-restart.log", delay: int = 3) -> None:
+    """REQ-636: detached, with a clean environment; the outcome is written to log_path."""
+    script = (
+        f"sleep {int(delay)}; "
+        "{ echo \"restart $(date)\"; "
+        "systemctl restart plugin_loader || service plugin_loader restart; "
+        "echo \"exit=$?\"; } >> \"$1\" 2>&1"
+    )
     subprocess.Popen(
-        ["sh", "-c", f"sleep {int(delay)}; systemctl restart plugin_loader"],
+        ["sh", "-c", script, "sh", log_path],
         start_new_session=True,
+        env=clean_env(),
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )

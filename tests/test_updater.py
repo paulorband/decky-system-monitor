@@ -244,3 +244,26 @@ def test_not_writable_fails_before_touching_anything_REQ638(tmp_path, monkeypatc
     with pytest.raises(UpdateError, match="root"):
         updater.install(d, fake_urlopen(release(z), z))
     assert open(os.path.join(d, "main.py")).read() == "# old"
+
+
+def test_clean_env_drops_pyinstaller_libs_REQ636():
+    env = updater.clean_env({"LD_LIBRARY_PATH": "/tmp/_MEI1", "LD_LIBRARY_PATH_ORIG": "/usr/lib", "PATH": "/x", "PYTHONHOME": "/p"})
+    assert env["LD_LIBRARY_PATH"] == "/usr/lib" and "PYTHONHOME" not in env and "LD_LIBRARY_PATH_ORIG" not in env
+    assert "/usr/bin" in env["PATH"].split(":") and env["PATH"].startswith("/x")
+    env = updater.clean_env({"LD_LIBRARY_PATH": "/tmp/_MEI1"})
+    assert "LD_LIBRARY_PATH" not in env
+
+
+def test_restart_is_detached_logged_and_clean_REQ636(monkeypatch):
+    seen = {}
+
+    def fake_popen(args, **kw):
+        seen["args"], seen["kw"] = args, kw
+
+    monkeypatch.setattr(updater.subprocess, "Popen", fake_popen)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEIx")
+    updater.schedule_decky_restart("/logs/restart.log", delay=2)
+    assert seen["kw"]["start_new_session"] is True
+    assert "LD_LIBRARY_PATH" not in seen["kw"]["env"]
+    assert seen["args"][-1] == "/logs/restart.log"  # log path passed as $1, never interpolated
+    assert "systemctl restart plugin_loader" in seen["args"][2] and "sleep 2" in seen["args"][2]

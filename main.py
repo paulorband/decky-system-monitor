@@ -79,7 +79,7 @@ class Plugin:
         finally:
             _installing = False
         decky.logger.info("updated to %s; restarting Decky", version)
-        updater.schedule_decky_restart()
+        updater.schedule_decky_restart(os.path.join(getattr(decky, "DECKY_PLUGIN_LOG_DIR", "/tmp"), "restart.log"))
         return {"ok": True, "version": version}
 
     async def get_settings(self):
