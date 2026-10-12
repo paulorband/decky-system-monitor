@@ -60,6 +60,7 @@ const en = {
   test_label: "test {c}",
   install_test: "Install test build {v}",
   toast_body_test: "Test build {v} is available. Open the plugin to install it.",
+  lang_auto: "Auto",
   bat_Charging: "Charging",
   bat_Discharging: "Discharging",
   bat_Full: "Full",
@@ -128,6 +129,7 @@ const ptBR: Dict = {
   test_label: "teste {c}",
   install_test: "Instalar build de teste {v}",
   toast_body_test: "O build de teste {v} está disponível. Abra o plugin para instalar.",
+  lang_auto: "Auto",
   bat_Charging: "Carregando",
   bat_Discharging: "Descarregando",
   bat_Full: "Cheia",
@@ -194,6 +196,7 @@ const es: Dict = {
   test_label: "prueba {c}",
   install_test: "Instalar versión de prueba {v}",
   toast_body_test: "La versión de prueba {v} está disponible. Abre el plugin para instalarla.",
+  lang_auto: "Auto",
   bat_Charging: "Cargando",
   bat_Discharging: "Descargando",
   bat_Full: "Completa",
@@ -229,30 +232,37 @@ export function resolveLocale(steamLang?: string | null, navLang?: string | null
   return navLang ? mapLanguage(navLang) : DEFAULT_LOCALE;
 }
 
-/** Where the language came from, for display and debugging (REQ-509). */
+/** Where the language came from, for display and debugging (REQ-509/510). */
 export interface LanguageInfo {
   locale: Locale;
-  source: "registry" | "steam-ui" | "browser" | "default";
+  source: "setting" | "steam-ui" | "browser" | "default";
   raw: string | null;
 }
 
-let backendLanguage: string | null = null;
+/** REQ-510: what the user picked in the plugin ("auto" = detect). */
+export type LanguagePref = "auto" | Locale;
+export const LANGUAGE_PREFS: LanguagePref[] = ["auto", "en", "pt-BR", "es"];
 
-/** REQ-509: language read by the backend from Steam's registry.vdf (authoritative). */
-export function setBackendLanguage(raw: string | null | undefined): void {
-  backendLanguage = raw ? raw : null;
+let preference: LanguagePref = "auto";
+
+export function setLanguagePreference(pref: string | null | undefined): void {
+  preference = (LANGUAGE_PREFS as string[]).includes(pref as string) ? (pref as LanguagePref) : "auto";
+}
+
+/** What each automatic source says right now (REQ-511 diagnostics). */
+export function getLanguageSources(): { steamUi: string | null; browser: string | null } {
+  let steam: string | undefined;
+  try { steam = (globalThis as any).LocalizationManager?.m_rgLocalesToUse?.[0]; } catch { /* ignore */ }
+  let nav: string | undefined;
+  try { nav = (globalThis as any).navigator?.language; } catch { /* ignore */ }
+  return { steamUi: steam || null, browser: nav || null };
 }
 
 export function getLanguageInfo(): LanguageInfo {
-  if (backendLanguage) return { locale: mapLanguage(backendLanguage), source: "registry", raw: backendLanguage };
-  let steam: string | undefined;
-  try {
-    steam = (globalThis as any).LocalizationManager?.m_rgLocalesToUse?.[0];
-  } catch { /* ignore */ }
-  if (steam) return { locale: mapLanguage(steam), source: "steam-ui", raw: steam };
-  let nav: string | undefined;
-  try { nav = (globalThis as any).navigator?.language; } catch { /* ignore */ }
-  if (nav) return { locale: mapLanguage(nav), source: "browser", raw: nav };
+  if (preference !== "auto") return { locale: preference, source: "setting", raw: preference }; // REQ-510
+  const src = getLanguageSources();
+  if (src.steamUi) return { locale: mapLanguage(src.steamUi), source: "steam-ui", raw: src.steamUi };
+  if (src.browser) return { locale: mapLanguage(src.browser), source: "browser", raw: src.browser };
   return { locale: DEFAULT_LOCALE, source: "default", raw: null };
 }
 

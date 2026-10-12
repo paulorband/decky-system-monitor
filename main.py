@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.join(PLUGIN_DIR, "py_modules"))
 
 # Unique sm_ prefix: Decky's own flat modules (settings, updater, ...) can already be in sys.modules,
 # and `import updater` would silently return Decky's instead of ours.
-import sm_lang  # noqa: E402
 import sm_settings as settings  # noqa: E402
 import sm_updater as updater  # noqa: E402
 from sm_procmon import ProcessSampler  # noqa: E402
@@ -99,15 +98,6 @@ class Plugin:
         decky.logger.info("updated to %s; restarting Decky", version)
         updater.schedule_decky_restart(os.path.join(getattr(decky, "DECKY_PLUGIN_LOG_DIR", "/tmp"), "restart.log"))
         return {"ok": True, "version": version}
-
-    async def get_language(self):
-        """Steam's configured language from registry.vdf (None when unknown)."""
-        try:
-            home = getattr(decky, "DECKY_USER_HOME", None) or os.path.expanduser("~")
-            return {"steam": sm_lang.steam_language(home)}
-        except Exception:
-            decky.logger.exception("get_language failed")
-            return {"steam": None}
 
     async def get_settings(self):
         return settings.load(self.settings_path)

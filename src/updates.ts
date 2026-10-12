@@ -1,7 +1,7 @@
 import { callable, toaster } from "@decky/api";
 import { useCallback, useEffect, useState } from "react";
 import { t } from "./i18n";
-import { initLanguage } from "./language";
+import { setLanguagePreference } from "./i18n";
 import { Settings } from "./types";
 
 export interface UpdateState {
@@ -26,8 +26,8 @@ const getSettings = callable<[], Settings>("get_settings");
 /** REQ-600/610: once per plugin start; silent on any failure (REQ-602). */
 export async function startupUpdateCheck(): Promise<void> {
   try {
-    await initLanguage(); // so the toast is in the right language
     const cfg = await getSettings();
+    setLanguagePreference(cfg.language); // REQ-510: the toast follows the chosen language
     if (!cfg.auto_check) return; // REQ-604
     const st = await checkUpdate(false);
     if (st.available && st.latest) {
