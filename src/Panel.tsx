@@ -42,7 +42,14 @@ const UpdateSection: FC<{ u: ReturnType<typeof useUpdates> }> = ({ u }) => {
   const isTest = state?.latest_kind === "test";
   return (
     <PanelSection title={t("section_updates")}>
-      <Row label={t("current_version")}>{state ? `v${state.current}` : "—"}</Row>
+      <Row label={t("current_version")} color={state?.current_kind === "test" ? "#ffb300" : undefined}>
+        {state
+          ? `v${state.current}` +
+            (state.current_kind === "test" && state.current_commit
+              ? ` · ${t("test_label", { c: state.current_commit })}` // REQ-664
+              : !state.current_kind && state.current_commit ? ` · ${state.current_commit}` : "")
+          : "—"}
+      </Row>
       {state?.available && (
         <Row label={t("latest_version")} color={isTest ? "#ffb300" : "#4caf50"}>
           v{state.latest}{isTest && state.commit ? ` · ${t("test_label", { c: state.commit })}` : ""}

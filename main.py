@@ -22,7 +22,11 @@ try:
     _current = updater.read_version(PLUGIN_DIR)
 except Exception:  # never let a version read stop the backend from loading
     _current = "0.0.0"
-_update_state = {"current": _current, "available": False, "checked": False}
+try:
+    _build = updater.build_info(PLUGIN_DIR)
+except Exception:
+    _build = {}
+_update_state = {"current": _current, "available": False, "checked": False, **_build}
 _installing = False
 
 
@@ -42,11 +46,13 @@ class Plugin:
     sampler: Sampler
     procs: ProcessSampler
     settings_path: str
+    http_cache: "updater.HttpCache"
 
     async def _main(self):
         self.sampler = Sampler()
         self.procs = ProcessSampler()
         self.settings_path = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
+        self.http_cache = updater.HttpCache(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "http-cache.json"))
         decky.logger.info("System Monitor %s loaded (dir=%s)", _update_state["current"], PLUGIN_DIR)
 
     async def _unload(self):
@@ -70,7 +76,7 @@ class Plugin:
             if not force and same_channel and st.get("checked_at") and time.time() - st["checked_at"] < updater.CACHE_SECONDS:
                 return st
             loop = asyncio.get_running_loop()
-            _update_state = await loop.run_in_executor(None, lambda: updater.check(PLUGIN_DIR, test_channel=test))
+            _update_state = await loop.run_in_executor(None, lambda: updater.check(PLUGIN_DIR, test_channel=test, cache=getattr(self, "http_cache", None)))
         except Exception as e:  # never reject: the UI shows the reason
             decky.logger.exception("check_update failed")
             _update_state = {**st, "checked": True, "available": False, "error": _err(e)}
@@ -84,7 +90,7 @@ class Plugin:
         try:
             loop = asyncio.get_running_loop()
             test = _test_channel(self)
-            version = await loop.run_in_executor(None, lambda: updater.install(PLUGIN_DIR, test_channel=test))
+            version = await loop.run_in_executor(None, lambda: updater.install(PLUGIN_DIR, test_channel=test, cache=getattr(self, "http_cache", None)))
         except Exception as e:
             decky.logger.exception("install_update failed")
             return {"ok": False, "error": _err(e)}

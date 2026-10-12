@@ -45,6 +45,13 @@ Verifica novas versões ao iniciar, avisa o usuário e permite instalar pela tel
 - **REQ-657 Mesmo commit = oficial**: se o `test-build` foi feito do **mesmo commit** da release estável mais recente (`target_commitish` da release, só quando for um SHA completo), ele é tratado como a release estável: sem rótulo/aviso de teste, e é instalado o *asset* estável. Se o commit instalado já é esse, está atualizado. Sem prova de igualdade (ex.: `target_commitish` é um nome de branch), vale a regra do REQ-654.
 - **REQ-656** UI: o build de teste é rotulado ("v0.2.5 · teste ab12cd3", em âmbar), o botão diz "Instalar build de teste", e o toast de inicialização também diz que é um build de teste. Mudar o canal força nova verificação.
 
+### Limite de requisições do GitHub e identidade instalada
+- **REQ-660 Uma chamada só**: a verificação usa um único `GET /repos/…/releases?per_page=15` (de onde saem a última estável e o `test-build`), em vez de uma chamada por canal.
+- **REQ-661 Cache condicional**: respostas da API são guardadas em disco (`http-cache.json` na pasta de configurações) com o `ETag`; as verificações seguintes enviam `If-None-Match`. Resposta `304` não conta no limite do GitHub e sobrevive a reinícios do Decky.
+- **REQ-662 Limite atingido** (HTTP 403 com limite zerado, ou 429): não é tratado como falha genérica; o estado traz `error = "RateLimited"` e `retry_minutes` (de `X-RateLimit-Reset`/`Retry-After`), e a UI diz "Limite do GitHub atingido; tente de novo em ~N min". Nenhuma nova tentativa automática.
+- **REQ-663 Origem da versão instalada**: ao instalar, o backend grava `kind` (`stable`|`test`) no `build.json` instalado. Para instalações manuais (sem `kind`), infere-se pelo commit: igual ao da estável mais recente → estável; igual ao do `test-build` → teste.
+- **REQ-664 UI**: a linha "Versão atual" mostra `v0.2.5 · teste fb361f2` em âmbar para build de teste, e `v0.2.5 · fb361f2` (neutro) quando o commit é conhecido mas a origem não.
+
 ## Limitações conhecidas
 - A reinicialização do Decky recarrega a interface; o mecanismo (`plugin_loader.service`) é o do Decky em SteamOS/Bazzite/CachyOS, mas só foi planejado para validação em hardware (T9-bis).
 - Repositório privado ou sem rede: não há atualização.

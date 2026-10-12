@@ -9,6 +9,9 @@ export interface UpdateState {
   latest?: string;
   latest_kind?: "stable" | "test";
   commit?: string;
+  current_commit?: string | null;
+  current_kind?: "stable" | "test" | null;
+  retry_minutes?: number;
   channel?: "stable" | "test";
   available: boolean;
   checked: boolean;
@@ -56,7 +59,8 @@ export function useUpdates() {
     try {
       const s = await checkUpdate(true);
       setState(s);
-      if (s.error) setMessage(`${t("check_failed")}: ${s.error}`);
+      if (s.retry_minutes) setMessage(t("rate_limited", { m: s.retry_minutes })); // REQ-662
+      else if (s.error) setMessage(`${t("check_failed")}: ${s.error}`);
     } catch (e) { setMessage(`${t("check_failed")}: ${String(e)}`); }
     finally { setBusy(null); }
   }, []);

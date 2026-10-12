@@ -16,9 +16,9 @@ import zipfile
 from typing import Any, Callable, Dict, Optional, Tuple
 
 REPO = "paulorband/decky-system-monitor"
-API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
 TEST_TAG = "test-build"
-API_TEST = f"https://api.github.com/repos/{REPO}/releases/tags/{TEST_TAG}"
+# REQ-660: one request covers both the latest stable release and the rolling test build.
+API_RELEASES = f"https://api.github.com/repos/{REPO}/releases?per_page=15"
 DOWNLOAD_PREFIX = f"https://github.com/{REPO}/releases/download/"
 ASSET_NAME = "decky-system-monitor.zip"
 ZIP_ROOT = "decky-system-monitor"
@@ -37,6 +37,14 @@ _SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$")
 
 class UpdateError(Exception):
     pass
+
+
+class RateLimited(UpdateError):
+    """REQ-662: GitHub's unauthenticated API quota is used up."""
+
+    def __init__(self, minutes: int):
+        super().__init__(f"GitHub rate limit; retry in ~{minutes} min")
+        self.minutes = minutes
 
 
 # --- versions (REQ-601) ---
@@ -69,14 +77,38 @@ def is_older(a: str, b: str) -> bool:
 
 
 def read_build(plugin_dir: str) -> Dict[str, Any]:
-    """REQ-652: build.json written by the CI into every zip (absent in old installs)."""
+    """REQ-652/663: build.json written by the CI (kind added by install()); absent in old installs."""
     try:
         with open(os.path.join(plugin_dir, "build.json")) as f:
             d = json.load(f)
         c = d.get("commit")
-        return {"version": d.get("version"), "commit": c if isinstance(c, str) and _SHA.match(c) else None}
+        k = d.get("kind")
+        return {"version": d.get("version"), "commit": c if isinstance(c, str) and _SHA.match(c) else None,
+                "kind": k if k in ("stable", "test") else None}
     except (OSError, ValueError, AttributeError):
-        return {"version": None, "commit": None}
+        return {"version": None, "commit": None, "kind": None}
+
+
+def build_info(plugin_dir: str) -> Dict[str, Any]:
+    b = read_build(plugin_dir)
+    return {"current_commit": b["commit"][:7] if b["commit"] else None, "current_kind": b["kind"]}
+
+
+def _stamp_kind(plugin_dir: str, kind: str) -> None:
+    """REQ-663: remember where the installed build came from."""
+    path = os.path.join(plugin_dir, "build.json")
+    try:
+        with open(path) as f:
+            d = json.load(f)
+        if not isinstance(d, dict):
+            d = {}
+    except (OSError, ValueError):
+        d = {}
+    d["kind"] = kind
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(d, f)
+    os.replace(tmp, path)
 
 
 # --- network ---
@@ -105,9 +137,10 @@ def _contexts():
                 continue
 
 
-def _open(url: str, urlopen: Callable, accept: str):
+def _open(url: str, urlopen: Callable, accept: str, headers: Optional[Dict[str, str]] = None):
     """Retry with alternative CA bundles only on certificate errors."""
-    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "decky-system-monitor-updater"})
+    req = urllib.request.Request(
+        url, headers={"Accept": accept, "User-Agent": "decky-system-monitor-updater", **(headers or {})})
     last: Optional[Exception] = None
     for ctx in _contexts():
         try:
@@ -119,16 +152,98 @@ def _open(url: str, urlopen: Callable, accept: str):
     raise last  # type: ignore[misc]
 
 
-def fetch_latest(urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
-    """REQ-600/631: latest stable release and its zip asset."""
-    with _open(API_LATEST, urlopen, "application/vnd.github+json") as r:
-        data = json.loads(r.read(1024 * 1024))
-    tag = data.get("tag_name")
-    if not parse_version(tag) or data.get("prerelease") or data.get("draft"):
-        raise UpdateError("no stable release")
-    info: Dict[str, Any] = {"tag": tag, "version": tag.lstrip("v"), "asset_url": None, "digest": None, "kind": "stable",
-            "commit": data.get("target_commitish") if _SHA.match(data.get("target_commitish") or "") else None}
-    for a in data.get("assets") or []:
+class HttpCache:
+    """REQ-661: ETag cache persisted on disk. A 304 reply does not count against GitHub's rate limit."""
+
+    def __init__(self, path: Optional[str] = None):
+        self.path = path
+        self.data: Dict[str, Any] = {}
+        if path:
+            try:
+                with open(path) as f:
+                    d = json.load(f)
+                if isinstance(d, dict):
+                    self.data = d
+            except (OSError, ValueError):
+                pass
+
+    def get(self, url: str) -> Optional[Dict[str, Any]]:
+        e = self.data.get(url)
+        return e if isinstance(e, dict) and e.get("etag") and "body" in e else None
+
+    def put(self, url: str, etag: str, body: Any) -> None:
+        self.data[url] = {"etag": etag, "body": body}
+        if not self.path:
+            return
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            tmp = self.path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(self.data, f)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass  # a cache that cannot be written is only a missed optimisation
+
+
+def _rate_limit_minutes(e: "urllib.error.HTTPError") -> int:
+    h = getattr(e, "headers", None)
+    try:
+        reset = h.get("X-RateLimit-Reset") if h else None
+        retry = h.get("Retry-After") if h else None
+        if reset:
+            return max(1, -(-(int(reset) - int(time.time())) // 60))
+        if retry:
+            return max(1, -(-int(retry) // 60))
+    except (TypeError, ValueError):
+        pass
+    return 60
+
+
+def _is_rate_limited(e: "urllib.error.HTTPError") -> bool:
+    if e.code == 429:
+        return True
+    if e.code != 403:
+        return False
+    h = getattr(e, "headers", None)
+    remaining = h.get("X-RateLimit-Remaining") if h else None
+    return remaining == "0" or "rate limit" in str(getattr(e, "reason", "")).lower()
+
+
+def _slim_release(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep only what we read, so the on-disk cache stays small."""
+    return {
+        "tag_name": r.get("tag_name"), "prerelease": bool(r.get("prerelease")), "draft": bool(r.get("draft")),
+        "body": r.get("body") or "", "target_commitish": r.get("target_commitish"),
+        "assets": [{"name": a.get("name"), "browser_download_url": a.get("browser_download_url"),
+                    "digest": a.get("digest")} for a in (r.get("assets") or [])],
+    }
+
+
+def fetch_releases(urlopen: Callable = urllib.request.urlopen, cache: Optional[HttpCache] = None):
+    """REQ-660/661/662: one conditional request for the release list."""
+    ent = cache.get(API_RELEASES) if cache else None
+    headers = {"If-None-Match": ent["etag"]} if ent else {}
+    try:
+        with _open(API_RELEASES, urlopen, "application/vnd.github+json", headers) as r:
+            raw = r.read(2 * 1024 * 1024)
+            etag = r.headers.get("ETag") if getattr(r, "headers", None) else None
+    except urllib.error.HTTPError as e:
+        if e.code == 304 and ent:
+            return ent["body"]
+        if _is_rate_limited(e):
+            raise RateLimited(_rate_limit_minutes(e)) from e
+        raise
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        raise UpdateError("unexpected API response")
+    slim = [_slim_release(x) for x in data if isinstance(x, dict)]
+    if cache and etag:
+        cache.put(API_RELEASES, etag, slim)
+    return slim
+
+
+def _asset(rel: Dict[str, Any], info: Dict[str, Any]) -> Dict[str, Any]:
+    for a in rel.get("assets") or []:
         url = a.get("browser_download_url") or ""
         if a.get("name") == ASSET_NAME and url.startswith(DOWNLOAD_PREFIX):
             info["asset_url"], info["digest"] = url, a.get("digest")
@@ -136,24 +251,33 @@ def fetch_latest(urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
     return info
 
 
-def fetch_test(urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
+def stable_from(releases) -> Optional[Dict[str, Any]]:
+    """REQ-600/631: newest non-prerelease with a valid SemVer tag (GitHub lists newest first)."""
+    for r in releases:
+        tag = r.get("tag_name")
+        if r.get("prerelease") or r.get("draft") or not parse_version(tag):
+            continue
+        commit = r.get("target_commitish")
+        info = {"tag": tag, "version": tag.lstrip("v"), "asset_url": None, "digest": None, "kind": "stable",
+                "commit": commit if _SHA.match(commit or "") else None}
+        return _asset(r, info)
+    return None
+
+
+def test_from(releases) -> Optional[Dict[str, Any]]:
     """REQ-650/652: the rolling `test-build` prerelease and the commit it was built from."""
-    with _open(API_TEST, urlopen, "application/vnd.github+json") as r:
-        data = json.loads(r.read(1024 * 1024))
-    if data.get("tag_name") != TEST_TAG or data.get("draft"):
-        raise UpdateError("no test build")
-    body = data.get("body") or ""
-    m = _BODY_COMMIT.search(body)
-    commit = m.group(1) if m else (data.get("target_commitish") if _SHA.match(data.get("target_commitish") or "") else None)
-    v = _BODY_VERSION.search(body)
-    version = v.group(1) if v and parse_version(v.group(1)) else None
-    info: Dict[str, Any] = {"tag": TEST_TAG, "version": version, "asset_url": None, "digest": None, "kind": "test", "commit": commit}
-    for a in data.get("assets") or []:
-        url = a.get("browser_download_url") or ""
-        if a.get("name") == ASSET_NAME and url.startswith(DOWNLOAD_PREFIX):
-            info["asset_url"], info["digest"] = url, a.get("digest")
-            break
-    return info
+    for r in releases:
+        if r.get("tag_name") != TEST_TAG or r.get("draft"):
+            continue
+        body = r.get("body") or ""
+        m = _BODY_COMMIT.search(body)
+        tc = r.get("target_commitish")
+        commit = m.group(1) if m else (tc if _SHA.match(tc or "") else None)
+        v = _BODY_VERSION.search(body)
+        version = v.group(1) if v and parse_version(v.group(1)) else None
+        info = {"tag": TEST_TAG, "version": version, "asset_url": None, "digest": None, "kind": "test", "commit": commit}
+        return _asset(r, info)
+    return None
 
 
 def download_verified(info: Dict[str, Any], urlopen: Callable = urllib.request.urlopen) -> bytes:
@@ -265,26 +389,28 @@ def _err(e: Exception) -> str:
     return f"{type(e).__name__}: {e}"[:200]
 
 
-def resolve(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False):
-    """REQ-600..603, 650..654. Returns (state, info-to-install-or-None); never raises."""
+def resolve(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False,
+            cache: Optional[HttpCache] = None):
+    """REQ-600..603, 650..654, 657, 660..663. Returns (state, info-to-install-or-None); never raises."""
     current = read_version(plugin_dir)
     build = read_build(plugin_dir)
-    channel = "test" if test_channel else "stable"
     state: Dict[str, Any] = {"current": current, "available": False, "checked": True,
-                             "checked_at": time.time(), "channel": channel}
-    errors = []
+                             "checked_at": time.time(), "channel": "test" if test_channel else "stable",
+                             **build_info(plugin_dir)}
     s = t = chosen = None
-
     try:
-        s = fetch_latest(urlopen)
+        releases = fetch_releases(urlopen, cache)
+    except RateLimited as e:
+        state["error"], state["retry_minutes"] = "RateLimited", e.minutes
+        return state, None
+    except Exception as e:  # network, JSON...
+        state["error"] = _err(e)
+        return state, None
+
+    s = stable_from(releases)
+    t = test_from(releases) if test_channel else None
+    if s:
         state["latest"], state["latest_kind"] = s["version"], "stable"
-    except Exception as e:
-        errors.append(e)
-    if test_channel:
-        try:
-            t = fetch_test(urlopen)
-        except Exception as e:
-            errors.append(e)
 
     if t and t["asset_url"] and t["commit"] and t["commit"] != build["commit"] \
             and (not t["version"] or not is_older(t["version"], current)):
@@ -300,21 +426,30 @@ def resolve(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_ch
         state["latest_kind"] = chosen["kind"]
         if chosen["kind"] == "test":
             state["commit"] = chosen["commit"][:7]
-    elif errors and s is None and t is None:
-        state["error"] = _err(errors[0])  # REQ-602: nothing could be checked
+    if not build["kind"] and build["commit"]:  # REQ-663: manual install -> infer from the commit
+        if s and s["commit"] == build["commit"]:
+            state["current_kind"] = "stable"
+        elif t and t["commit"] == build["commit"]:
+            state["current_kind"] = "test"
+    if not s and not t:
+        state["error"] = "no stable release"  # REQ-602
     return state, chosen
 
 
-def check(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False) -> Dict[str, Any]:
-    return resolve(plugin_dir, urlopen, test_channel)[0]
+def check(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False,
+          cache: Optional[HttpCache] = None) -> Dict[str, Any]:
+    return resolve(plugin_dir, urlopen, test_channel, cache)[0]
 
 
-def install(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False) -> str:
+def install(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False,
+            cache: Optional[HttpCache] = None) -> str:
     """REQ-630/655: refetch, require something new, download, verify, validate, apply. Returns the version."""
     if not os.access(plugin_dir, os.W_OK) or not os.access(os.path.dirname(os.path.abspath(plugin_dir)), os.W_OK):
         raise UpdateError("plugin folder is not writable: the backend must run as root (plugin.json flags)")
-    state, info = resolve(plugin_dir, urlopen, test_channel)
+    state, info = resolve(plugin_dir, urlopen, test_channel, cache)
     if info is None:
+        if state.get("retry_minutes"):
+            raise RateLimited(state["retry_minutes"])
         raise UpdateError(state.get("error") or "already up to date")
     data = download_verified(info, urlopen)
     tmp = tempfile.mkdtemp(prefix="sysmon-upd-")
@@ -323,6 +458,7 @@ def install(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_ch
         # stable: the package must be exactly the release; test: only well-formed
         validate(root, info["version"] if info["kind"] == "stable" else None)
         apply_package(root, plugin_dir)
+        _stamp_kind(plugin_dir, info["kind"])  # REQ-663
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return info["version"] or read_version(plugin_dir)

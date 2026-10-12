@@ -32,12 +32,16 @@ def good_files(version="0.2.0"):
 
 
 class Resp:
-    def __init__(self, data):
+    def __init__(self, data, headers=None):
         self._d = data
+        self.headers = headers or {}
+
     def read(self, n=-1):
         return self._d if n < 0 else self._d[:n]
+
     def __enter__(self):
         return self
+
     def __exit__(self, *a):
         pass
 
@@ -45,14 +49,11 @@ class Resp:
 def fake_urlopen(release=None, zip_bytes=b"", test_release=None):
     def _open(req, timeout=None, context=None):
         url = req.full_url
-        if url == updater.API_TEST:
-            if test_release is None:
-                raise OSError("404")
-            return Resp(json.dumps(test_release).encode())
-        if url == updater.API_LATEST:
-            if release is None:
+        if url == updater.API_RELEASES:  # REQ-660: one call lists stable + test-build
+            items = [x for x in (test_release, release) if x is not None]
+            if not items:
                 raise OSError("offline")
-            return Resp(json.dumps(release).encode())
+            return Resp(json.dumps(items).encode())
         return Resp(zip_bytes)
     return _open
 
@@ -365,6 +366,7 @@ def test_install_test_build_applies_and_records_commit_REQ655(tmp_path):
     uo = fake_urlopen(release(z, tag="v0.1.1"), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
     assert updater.install(d, uo, test_channel=True) == "0.1.1"
     assert updater.read_build(d)["commit"] == SHA_B
+    assert updater.read_build(d)["kind"] == "test"  # REQ-663
     assert open(os.path.join(d, "main.py")).read() == "# new"
     assert not updater.check(d, uo, test_channel=True)["available"]  # now up to date
 
@@ -392,7 +394,7 @@ def test_install_stable_refuses_when_only_test_exists_REQ654(tmp_path):
 
 def test_read_build_robust(tmp_path):
     d = installed(tmp_path)
-    assert updater.read_build(d) == {"version": None, "commit": None}
+    assert updater.read_build(d) == {"version": None, "commit": None, "kind": None}
     with open(os.path.join(d, "build.json"), "w") as f:
         f.write("{not json")
     assert updater.read_build(d)["commit"] is None
@@ -453,3 +455,125 @@ def test_test_channel_ok_even_if_stable_fetch_fails_REQ654(tmp_path):
     uo = fake_urlopen(None, z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))  # stable API offline
     st = updater.check(d, uo, test_channel=True)
     assert st["available"] and st["latest_kind"] == "test" and "error" not in st
+
+
+# ---------------- REQ-660..664: rate limit, cache, installed origin ----------------
+import urllib.error
+
+
+class Hdr(dict):
+    pass
+
+
+def http_error(code, headers=None, reason="rate limit exceeded"):
+    return urllib.error.HTTPError(updater.API_RELEASES, code, reason, Hdr(headers or {}), None)
+
+
+def test_single_api_request_per_check_REQ660(tmp_path):
+    d = installed(tmp_path)
+    z = make_zip(good_files("0.2.0"))
+    calls = []
+    inner = fake_urlopen(release(z), z, test_release=make_test_release(z, commit=SHA_B, version="0.2.0"))
+
+    def counting(req, timeout=None, context=None):
+        calls.append(req.full_url)
+        return inner(req, timeout, context)
+
+    updater.check(d, counting, test_channel=True)
+    assert calls == [updater.API_RELEASES]  # was two calls with the test channel on
+
+
+def test_rate_limited_is_reported_with_minutes_REQ662(tmp_path):
+    d = installed(tmp_path)
+    reset = str(int(__import__("time").time()) + 600)
+
+    def limited(req, timeout=None, context=None):
+        raise http_error(403, {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": reset})
+
+    st = updater.check(d, limited)
+    assert st["error"] == "RateLimited" and 9 <= st["retry_minutes"] <= 11 and not st["available"]
+    with pytest.raises(updater.RateLimited):
+        updater.install(d, limited)
+
+
+def test_rate_limit_detected_by_message_and_429_but_not_other_403_REQ662(tmp_path):
+    d = installed(tmp_path)
+
+    def by_reason(req, timeout=None, context=None):
+        raise http_error(403, {}, "rate limit exceeded")
+
+    def too_many(req, timeout=None, context=None):
+        raise http_error(429, {"Retry-After": "120"}, "Too Many Requests")
+
+    def forbidden(req, timeout=None, context=None):
+        raise http_error(403, {"X-RateLimit-Remaining": "50"}, "Forbidden")
+
+    assert updater.check(d, by_reason)["error"] == "RateLimited"
+    st = updater.check(d, too_many)
+    assert st["error"] == "RateLimited" and st["retry_minutes"] == 2
+    assert updater.check(d, forbidden)["error"].startswith("HTTPError")  # a plain 403 is a normal failure
+
+
+def test_etag_cache_serves_304_without_a_body_REQ661(tmp_path):
+    d = installed(tmp_path)
+    z = make_zip(good_files("0.2.0"))
+    cache = updater.HttpCache(str(tmp_path / "cache" / "http-cache.json"))
+    sent = []
+    inner = fake_urlopen(release(z), z)
+
+    def server(req, timeout=None, context=None):
+        sent.append(req.get_header("If-none-match"))
+        if req.get_header("If-none-match") == '"v1"':
+            raise http_error(304, {}, "Not Modified")
+        r = inner(req, timeout, context)
+        r.headers = {"ETag": '"v1"'}
+        return r
+
+    assert updater.check(d, server, cache=cache)["available"]
+    assert updater.check(d, server, cache=cache)["available"]  # answered from cache via 304
+    assert sent == [None, '"v1"']
+    # persisted: a fresh cache object (new process after a Decky restart) still sends the ETag
+    cache2 = updater.HttpCache(str(tmp_path / "cache" / "http-cache.json"))
+    assert updater.check(d, server, cache=cache2)["available"]
+    assert sent[-1] == '"v1"'
+
+
+def test_corrupt_cache_file_is_ignored_REQ661(tmp_path):
+    p = tmp_path / "c.json"
+    p.write_text("{nope")
+    assert updater.HttpCache(str(p)).get(updater.API_RELEASES) is None
+
+
+def test_current_kind_from_build_json_after_install_REQ663(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    with open(os.path.join(d, "build.json"), "w") as f:
+        json.dump({"version": "0.1.1", "commit": SHA_A, "kind": "test"}, f)
+    z = make_zip(good_files("0.1.1"))
+    st = updater.check(d, fake_urlopen(release(z, tag="v0.1.1"), z))
+    assert st["current_kind"] == "test" and st["current_commit"] == SHA_A[:7]
+
+
+def test_current_kind_inferred_for_manual_installs_REQ663(tmp_path):
+    z = make_zip(good_files("0.1.1"))
+    d = installed(tmp_path)
+    set_build(d, SHA_B)  # no kind recorded (installed by hand)
+    # matches the test-build commit -> test
+    uo = fake_urlopen(release(z, tag="v0.1.1", commit=SHA_A), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    assert updater.check(d, uo, test_channel=True)["current_kind"] == "test"
+    # matches the stable release commit -> stable
+    uo = fake_urlopen(release(z, tag="v0.1.1", commit=SHA_B), z)
+    assert updater.check(d, uo)["current_kind"] == "stable"
+    # matches nothing -> unknown (None), but the commit is still shown
+    set_build(d, SHA_A)
+    st = updater.check(d, fake_urlopen(release(z, tag="v0.1.1", commit=SHA_B), z))
+    assert st["current_kind"] is None and st["current_commit"] == SHA_A[:7]
+
+
+def test_install_stable_records_kind_REQ663(tmp_path):
+    d = installed(tmp_path)
+    files = good_files("0.2.0")
+    files["build.json"] = json.dumps({"version": "0.2.0", "commit": SHA_B})
+    z = make_zip(files)
+    updater.install(d, fake_urlopen(release(z, commit=SHA_B), z))
+    assert updater.read_build(d)["kind"] == "stable"
