@@ -27,7 +27,7 @@ Verifica novas versões ao iniciar, avisa o usuário e permite instalar pela tel
 - **REQ-634 Validação**: o pacote deve conter `plugin.json` com `name` = `System Monitor`, `main.py` e `dist/index.js`.
 - **REQ-635 Aplicação com rollback**: os itens (`plugin.json`, `package.json`, `main.py`, `LICENSE`, `dist/`, `py_modules/`) são copiados sobre a pasta instalada; backup prévio, restaurado se qualquer passo falhar.
 - **REQ-636** Após sucesso, o backend agenda a reinicialização do Decky (`systemctl restart plugin_loader`, destacada, com pequeno atraso) para carregar a nova versão; a UI informa antes.
-- **REQ-636b** A reinicialização roda com ambiente limpo (sem `LD_LIBRARY_PATH` do Decky, que quebra `systemctl`), e o resultado é gravado em `restart.log` na pasta de logs do plugin. Se o Decky não reiniciar em ~20 s, a UI para de esperar e orienta a reiniciar manualmente (configurações do Decky ou reboot).
+- **REQ-636b** A reinicialização roda com ambiente limpo (sem `LD_LIBRARY_PATH` do Decky, que quebra `systemctl`), e o resultado é gravado em `restart.log` na pasta de logs do plugin. Se o Decky não reiniciar em ~20 s, a UI para de esperar e orienta a reiniciar manualmente (reiniciar o aparelho ou o `plugin_loader` no modo desktop).
 - **REQ-637** Instalações concorrentes são recusadas.
 - **REQ-638 Privilégio**: o backend de um plugin Decky roda como `deck`, que não escreve em `~/homebrew/plugins` (root) nem reinicia o `plugin_loader`. Por isso o `plugin.json` declara `"flags": ["root"]`. Se a pasta não for gravável, a instalação falha **antes de tocar em qualquer arquivo** com mensagem explícita.
 - **REQ-639** Quem está numa versão sem a flag `root` (≤ v0.2.1) precisa instalar uma vez o ZIP manualmente; dali em diante o botão funciona.
