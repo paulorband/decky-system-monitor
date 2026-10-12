@@ -5,10 +5,12 @@ import json
 import os
 import re
 import shutil
+import ssl
 import stat
 import subprocess
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -57,9 +59,43 @@ def read_version(plugin_dir: str) -> str:
 
 
 # --- network ---
+CA_BUNDLES = (
+    "/etc/ssl/certs/ca-certificates.crt",  # Debian/Arch/SteamOS
+    "/etc/pki/tls/certs/ca-bundle.crt",  # Fedora/Bazzite
+    "/etc/ssl/ca-bundle.pem",
+)
+
+
+def _contexts():
+    """Default first (honours SSL_CERT_FILE and the system store), then certifi/known bundles."""
+    yield ssl.create_default_context()
+    candidates = []
+    try:
+        import certifi  # type: ignore
+        candidates.append(certifi.where())
+    except Exception:
+        pass
+    candidates.extend(CA_BUNDLES)
+    for cafile in candidates:
+        if cafile and os.path.isfile(cafile):
+            try:
+                yield ssl.create_default_context(cafile=cafile)
+            except (ssl.SSLError, OSError):
+                continue
+
+
 def _open(url: str, urlopen: Callable, accept: str):
+    """Retry with alternative CA bundles only on certificate errors."""
     req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "decky-system-monitor-updater"})
-    return urlopen(req, timeout=TIMEOUT)
+    last: Optional[Exception] = None
+    for ctx in _contexts():
+        try:
+            return urlopen(req, timeout=TIMEOUT, context=ctx)
+        except urllib.error.URLError as e:
+            if not isinstance(getattr(e, "reason", None), ssl.SSLError):
+                raise
+            last = e
+    raise last  # type: ignore[misc]
 
 
 def fetch_latest(urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
@@ -192,7 +228,7 @@ def check(plugin_dir: str, urlopen: Callable = urllib.request.urlopen) -> Dict[s
         state["latest"] = info["version"]
         state["available"] = is_newer(info["version"], current) and bool(info["asset_url"])
     except Exception as e:  # network, JSON, rate limit...
-        state["error"] = type(e).__name__
+        state["error"] = f"{type(e).__name__}: {e}"[:200]
     return state
 
 

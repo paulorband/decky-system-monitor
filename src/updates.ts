@@ -37,7 +37,7 @@ export function useUpdates() {
 
   useEffect(() => {
     let alive = true;
-    getUpdateState().then((s) => alive && setState(s)).catch(() => {});
+    getUpdateState().then((s) => alive && setState(s)).catch((e) => alive && setMessage(`${t("check_failed")}: ${String(e)}`));
     return () => { alive = false; };
   }, []);
 
@@ -46,8 +46,8 @@ export function useUpdates() {
     try {
       const s = await checkUpdate(true);
       setState(s);
-      if (s.error) setMessage(t("check_failed"));
-    } catch { setMessage(t("check_failed")); }
+      if (s.error) setMessage(`${t("check_failed")}: ${s.error}`);
+    } catch (e) { setMessage(`${t("check_failed")}: ${String(e)}`); }
     finally { setBusy(null); }
   }, []);
 

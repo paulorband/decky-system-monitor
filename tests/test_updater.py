@@ -43,7 +43,7 @@ class Resp:
 
 
 def fake_urlopen(release=None, zip_bytes=b""):
-    def _open(req, timeout=None):
+    def _open(req, timeout=None, context=None):
         url = req.full_url
         if url == updater.API_LATEST:
             if release is None:
@@ -211,3 +211,27 @@ def test_rollback_on_failure_REQ635(tmp_path, monkeypatch):
     assert os.path.exists(os.path.join(d, "py_modules/stale.py"))
     assert updater.read_version(d) == "0.1.1"
     assert os.listdir(os.path.dirname(d)) == ["System Monitor"]
+
+
+def test_cert_error_retries_with_alternative_bundle_only(monkeypatch, tmp_path):
+    import ssl
+    import urllib.error
+    bundle = tmp_path / "ca.crt"
+    bundle.write_text("x")
+    monkeypatch.setattr(updater, "CA_BUNDLES", (str(bundle),))
+    monkeypatch.setattr(updater.ssl, "create_default_context", lambda cafile=None: object())
+    seen = []
+
+    def urlopen(req, timeout=None, context=None):
+        seen.append(context)
+        if len(seen) == 1:
+            raise urllib.error.URLError(ssl.SSLCertVerificationError("bad"))
+        return Resp(b"{}")
+
+    assert updater._open("https://x", urlopen, "a").read() == b"{}"
+    assert len(seen) == 2  # default, then the alternative bundle
+
+    def offline(req, timeout=None, context=None):
+        raise urllib.error.URLError(OSError("offline"))
+    with pytest.raises(urllib.error.URLError):  # non-cert errors are not retried
+        updater._open("https://x", offline, "a")
