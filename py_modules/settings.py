@@ -4,13 +4,11 @@ import os
 from typing import Any, Dict
 
 INTERVALS = (500, 1000, 2000, 5000)
-POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right")
 GROUPS = ("cpu", "gpu", "mem", "battery", "fan")
 
 DEFAULTS: Dict[str, Any] = {
     "interval_ms": 1000,
     "show": {g: True for g in GROUPS},
-    "overlay": {"enabled": False, "position": "top-left", "compact": True},
 }
 
 
@@ -25,13 +23,6 @@ def sanitize(raw: Any) -> Dict[str, Any]:
         for g in GROUPS:
             if isinstance(show.get(g), bool):
                 out["show"][g] = show[g]
-    ov = raw.get("overlay")
-    if isinstance(ov, dict):
-        for k in ("enabled", "compact"):
-            if isinstance(ov.get(k), bool):
-                out["overlay"][k] = ov[k]
-        if ov.get("position") in POSITIONS:
-            out["overlay"]["position"] = ov["position"]
     return out
 
 

@@ -10,19 +10,16 @@ export interface Stats {
   fan?: { rpm: number };
 }
 
-export type Position = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 export type Group = "cpu" | "gpu" | "mem" | "battery" | "fan";
 
 export interface Settings {
   interval_ms: number;
   show: Record<Group, boolean>;
-  overlay: { enabled: boolean; position: Position; compact: boolean };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   interval_ms: 1000,
   show: { cpu: true, gpu: true, mem: true, battery: true, fan: true },
-  overlay: { enabled: false, position: "top-left", compact: true },
 };
 
 export interface ProcGroup {

@@ -1,12 +1,14 @@
-# 003 — Overlay no jogo (opcional)
+# 003 — Overlay no jogo (REMOVIDO)
 
-## Requisitos
-- **REQ-200** Overlay desligado por padrão; ligado por um toggle no painel.
-- **REQ-201** Renderizado como componente global do Decky (`routerHook.addGlobalComponent`), `pointer-events: none`, sem foco.
-- **REQ-202** Posição: 4 cantos (dropdown). Modo compacto (uma linha) ou detalhado.
-- **REQ-203** Métricas do overlay: subconjunto escolhido (CPU %, GPU %, RAM %, temperaturas, potência, bateria).
-- **REQ-204** Overlay ligado mantém exatamente 1 timer compartilhado com o painel (REQ-300); desligado → 0 timers se painel fechado.
-- **REQ-205** Opacidade fixa e fundo translúcido para legibilidade sem cobrir o jogo.
+Status: **removido** (v0.1.1). Mantido como registro da decisão.
 
-## Fora de escopo
-- Mostrar overlay dentro do jogo via MangoHud/gamescope (outro mecanismo).
+## O que aconteceu
+O overlay era um componente global da interface do Steam (`routerHook.addGlobalComponent`).
+No Game Mode o jogo é desenhado pelo gamescope; a interface do Steam só aparece por cima quando
+o menu do Steam/Quick Access está aberto. Resultado (confirmado no ROG Xbox Ally): o overlay
+**nunca aparece sobre o jogo**, só na interface do Steam. O nome "overlay no jogo" era enganoso.
+
+## Decisão
+Removido, em vez de manter um recurso que não entrega o que promete.
+Um overlay real dentro do jogo exigiria controlar o MangoApp/MangoHud (fora de escopo, decisão do autor).
+Se for retomado, deve nascer como uma spec nova, validada em hardware desde o início.

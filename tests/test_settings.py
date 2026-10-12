@@ -5,10 +5,10 @@ import settings
 
 def test_defaults_and_sanitize():
     assert settings.sanitize(None) == settings.DEFAULTS
-    s = settings.sanitize({"interval_ms": 3, "show": {"cpu": False, "x": 1, "gpu": "no"},
-                           "overlay": {"enabled": True, "position": "mid"}})
+    s = settings.sanitize({"interval_ms": 3, "show": {"cpu": False, "x": 1, "gpu": "no"}})
     assert s["interval_ms"] == 1000 and s["show"]["cpu"] is False and s["show"]["gpu"] is True
-    assert s["overlay"]["enabled"] is True and s["overlay"]["position"] == "top-left"
+    assert "overlay" not in s  # removed feature: stale keys in old files are dropped
+    assert settings.sanitize({"overlay": {"enabled": True}}) == settings.DEFAULTS
 
 
 def test_roundtrip_atomic_and_corrupt(tmp_path):

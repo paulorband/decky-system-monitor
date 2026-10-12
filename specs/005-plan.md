@@ -6,7 +6,7 @@ Frontend (React/TS, @decky/ui)            Backend (Python, Decky)
 ┌───────────────────────────┐             ┌───────────────────────┐
 │ Panel  ─┐                 │  callable   │ main.py  (Plugin)     │
 │         ├─ Poller ────────┼────────────▶│  get_stats()          │
-│ Overlay ┘  (1 timer)      │             │  get/set_settings()   │
+│ (1 timer)                 │             │  get/set_settings()   │
 └───────────────────────────┘             │ py_modules/sysmon.py  │
                                           │ py_modules/settings.py│
                                           └───────────────────────┘

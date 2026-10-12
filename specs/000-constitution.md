@@ -3,14 +3,13 @@
 Princípios inegociáveis. Toda spec e todo PR devem respeitá-los.
 
 1. **Leve primeiro.** O plugin não pode ser notado no desempenho do jogo.
-   - Zero polling quando nada está visível (painel fechado e overlay desligado).
+   - Zero polling quando nada está visível (painel e tela de processos fechados).
    - Backend em Python puro (stdlib), lendo apenas `/proc` e `/sys`. Sem subprocessos no caminho quente.
-   - Um único timer no frontend, compartilhado entre painel e overlay.
+   - Um único timer no frontend, compartilhado entre os consumidores.
    - Orçamento: < 1% de uma CPU a 1 Hz; < 2 MB de bundle JS.
 2. **100% controle.** Toda ação é alcançável apenas com D-pad + A/B. Nada depende de toque, mouse ou teclado.
    - Todo item de lista é focável (inclusive leituras), para rolagem com D-pad.
    - Nenhuma armadilha de foco; B sempre sai.
-   - O overlay é estritamente não interativo e nunca captura foco.
 3. **Portável entre distros.** SteamOS oficial, Bazzite, CachyOS Handheld, ChimeraOS, etc.
    - Descoberta de sensores por *capacidade* (nomes de hwmon, arquivos existentes), nunca por modelo de aparelho.
    - Métrica indisponível → omitida da UI, nunca erro nem "0".

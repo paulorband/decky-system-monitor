@@ -4,7 +4,7 @@ import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
 import { t, tBatteryStatus } from "./i18n";
 import { PROCESS_ROUTE } from "./ProcessPage";
-import { Group, Position } from "./types";
+import { Group } from "./types";
 
 const Val: FC<{ color?: string; children: ReactNode }> = ({ color, children }) => (
   <span style={{ color, fontVariantNumeric: "tabular-nums" }}>{children}</span>
@@ -20,12 +20,6 @@ const Row: FC<{ label: string; color?: string; children: ReactNode }> = ({ label
 );
 
 const INTERVALS = [500, 1000, 2000, 5000];
-const positions = (): { data: Position; label: string }[] => [
-  { data: "top-left", label: t("pos_top_left") },
-  { data: "top-right", label: t("pos_top_right") },
-  { data: "bottom-left", label: t("pos_bottom_left") },
-  { data: "bottom-right", label: t("pos_bottom_right") },
-];
 const groups = (): { key: Group; label: string }[] => [
   { key: "cpu", label: t("section_cpu") },
   { key: "gpu", label: t("section_gpu") },
@@ -124,32 +118,6 @@ export const Panel: FC = () => {
             />
           </PanelSectionRow>
         ))}
-        <PanelSectionRow>
-          <ToggleField
-            label={t("overlay_ingame")}
-            checked={cfg.overlay.enabled}
-            onChange={(v) => store.update((c) => ({ ...c, overlay: { ...c.overlay, enabled: v } }))}
-          />
-        </PanelSectionRow>
-        {cfg.overlay.enabled && (
-          <>
-            <PanelSectionRow>
-              <DropdownItem
-                label={t("overlay_position")}
-                rgOptions={positions()}
-                selectedOption={cfg.overlay.position}
-                onChange={(o) => store.update((c) => ({ ...c, overlay: { ...c.overlay, position: o.data } }))}
-              />
-            </PanelSectionRow>
-            <PanelSectionRow>
-              <ToggleField
-                label={t("overlay_compact")}
-                checked={cfg.overlay.compact}
-                onChange={(v) => store.update((c) => ({ ...c, overlay: { ...c.overlay, compact: v } }))}
-              />
-            </PanelSectionRow>
-          </>
-        )}
       </PanelSection>
     </>
   );

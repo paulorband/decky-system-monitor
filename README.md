@@ -3,7 +3,7 @@
 Monitor de recursos leve para o [Decky Loader](https://decky.xyz) no Game Mode (SteamOS, Bazzite, CachyOS Handheld, ChimeraOS…). 100 % navegável por controle.
 
 - CPU (uso, frequência, temperatura), GPU AMD (uso, clock, temp, potência, VRAM), RAM/swap, bateria/consumo, ventoinha
-- Painel no Quick Access + overlay opcional no jogo
+- Painel no Quick Access
 - Idiomas: English, Português (Brasil), Español — segue o idioma do Steam; padrão English
 - **Consumo por processo**: tela dedicada (CPU e RAM), agrupada por jogo via `SteamAppId` (Proton/Wine incluídos), ordenável por CPU ou memória
 - Sem polling quando nada está visível; Python puro, sem dependências
@@ -33,4 +33,4 @@ Release versionada: `git tag v0.1.0 && git push origin v0.1.0`, ou Actions → *
 | GPU Intel / NVIDIA | Adiado: GPU exibida só para AMD (`amdgpu`); CPU, RAM, bateria e processos funcionam em qualquer hardware |
 
 Relatos de teste em outros aparelhos são bem-vindos (abra uma issue com a distro e o que apareceu/faltou).
-Overlay via gamescope/MangoHud está fora de escopo.
+Overlay dentro do jogo (gamescope/MangoHud) está fora de escopo; veja `specs/003-overlay.md`.
