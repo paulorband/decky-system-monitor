@@ -4,7 +4,7 @@ Motivador principal do plugin: ver **quem** está consumindo CPU e RAM.
 
 ## Requisitos
 
-### Coleta (`py_modules/procmon.py`)
+### Coleta (`py_modules/sm_procmon.py`)
 - **REQ-400** `get_processes(sort, limit)` retorna os `limit` maiores consumidores, ordenados por `sort` (`cpu` | `mem`). `limit` ∈ [1, 50] (padrão 15); valores inválidos são saneados.
 - **REQ-401** Fonte: apenas `/proc/<pid>/stat` (+ `environ` uma vez por processo). Sem subprocessos, sem dependências.
 - **REQ-402 CPU**: `cpu` = % da capacidade **total** da máquina (0–100, consistente com o uso total de CPU), calculado por delta de ticks (utime+stime) sobre o delta de ticks totais de `/proc/stat`. Na primeira amostra (ou após > 10 s sem chamadas) `cpu` é `null`.

@@ -1,6 +1,6 @@
 import json
 
-import settings
+import sm_settings as settings
 
 
 def test_defaults_and_sanitize():

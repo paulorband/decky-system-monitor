@@ -8,14 +8,20 @@ import decky  # type: ignore
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))  # no dependency on decky.DECKY_PLUGIN_DIR
 sys.path.insert(0, os.path.join(PLUGIN_DIR, "py_modules"))
 
-import settings  # noqa: E402
-import updater  # noqa: E402
-from procmon import ProcessSampler  # noqa: E402
-from sysmon import Sampler  # noqa: E402
+# Unique sm_ prefix: Decky's own flat modules (settings, updater, ...) can already be in sys.modules,
+# and `import updater` would silently return Decky's instead of ours.
+import sm_settings as settings  # noqa: E402
+import sm_updater as updater  # noqa: E402
+from sm_procmon import ProcessSampler  # noqa: E402
+from sm_sysmon import Sampler  # noqa: E402
 
 
 # Update state lives at module level so the update methods never depend on _main having run.
-_update_state = {"current": updater.read_version(PLUGIN_DIR), "available": False, "checked": False}
+try:
+    _current = updater.read_version(PLUGIN_DIR)
+except Exception:  # never let a version read stop the backend from loading
+    _current = "0.0.0"
+_update_state = {"current": _current, "available": False, "checked": False}
 _installing = False
 
 

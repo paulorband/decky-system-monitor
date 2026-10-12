@@ -1,6 +1,6 @@
 import os
 
-from procmon import ProcessSampler
+from sm_procmon import ProcessSampler
 
 
 def w(root, path, data, mode="w"):

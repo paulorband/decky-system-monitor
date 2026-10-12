@@ -1,6 +1,6 @@
 # 001 — Coleta de métricas (backend)
 
-Status: implementado em `py_modules/sysmon.py`, exposto por `main.py`.
+Status: implementado em `py_modules/sm_sysmon.py`, exposto por `main.py`.
 
 ## Contexto
 O frontend precisa de um snapshot barato e uniforme, independente de hardware.

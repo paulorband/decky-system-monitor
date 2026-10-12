@@ -1,6 +1,6 @@
 import os
 
-from sysmon import Sampler
+from sm_sysmon import Sampler
 
 
 def w(root, path, text):

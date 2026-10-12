@@ -6,8 +6,8 @@ import zipfile
 
 import pytest
 
-import updater
-from updater import UpdateError
+import sm_updater as updater
+from sm_updater import UpdateError
 
 
 def make_zip(files, root="decky-system-monitor", extra=None):
