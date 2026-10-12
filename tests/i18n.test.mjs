@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  DICTIONARIES, resolveLocale, t, tBatteryStatus, tProcesses, fmtNum,
+  DICTIONARIES, resolveLocale, mapLanguage, getLanguageInfo, setBackendLanguage, t, tBatteryStatus, tProcesses, fmtNum,
 } from "../src/i18n.ts";
 
 test("REQ-502 steam language mapping", () => {
@@ -41,4 +41,40 @@ test("translate, interpolate, plural, battery, numbers", () => {
   assert.equal(tBatteryStatus("Weird", "es"), "Weird");
   assert.equal(fmtNum(1.5, 1, "en"), "1.5");
   assert.equal(fmtNum(1.5, 1, "pt-BR"), "1,5");
+});
+
+
+test("REQ-502 accepts both Steam names and BCP-47 codes", () => {
+  for (const [tag, want] of [
+    ["pt-BR", "pt-BR"], ["pt_BR", "pt-BR"], ["pt", "pt-BR"], ["PT-PT", "pt-BR"], ["brazilian", "pt-BR"],
+    ["es", "es"], ["es-419", "es"], ["es-ES", "es"], ["latam", "es"], ["spanish", "es"],
+    ["en", "en"], ["en-US", "en"], ["english", "en"],
+    ["de", "en"], ["german", "en"], ["estonian", "en"], ["et", "en"], ["ptolemaic", "en"], ["", "en"],
+  ]) assert.equal(mapLanguage(tag), want, tag);
+});
+
+test("REQ-509 backend (registry) wins over Steam UI and browser", () => {
+  globalThis.LocalizationManager = { m_rgLocalesToUse: ["english"] };
+  setBackendLanguage(null);
+  assert.deepEqual(getLanguageInfo(), { locale: "en", source: "steam-ui", raw: "english" });
+  setBackendLanguage("brazilian");
+  assert.deepEqual(getLanguageInfo(), { locale: "pt-BR", source: "registry", raw: "brazilian" });
+  assert.equal(t("sort_by"), "Ordenar por");  // t() follows the detected locale, never stuck
+  setBackendLanguage("spanish");
+  assert.equal(t("title"), "Monitor del sistema");
+  setBackendLanguage(null);
+  delete globalThis.LocalizationManager;
+  assert.equal(getLanguageInfo().source === "browser" || getLanguageInfo().source === "default", true);
+});
+
+test("language can change at runtime (no sticky cache)", () => {
+  setBackendLanguage("english");
+  assert.equal(t("title"), "System Monitor");
+  setBackendLanguage("brazilian");
+  assert.equal(t("title"), "Monitor do Sistema");
+  setBackendLanguage("spanish");
+  assert.equal(t("title"), "Monitor del sistema");
+  setBackendLanguage("english");
+  assert.equal(t("title"), "System Monitor");
+  setBackendLanguage(null);
 });

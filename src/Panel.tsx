@@ -1,9 +1,10 @@
 import { ButtonItem, DropdownItem, Field, Navigation, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
-import { FC, ReactNode } from "react";
+import { FC, ReactNode, useEffect, useState } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
 import { useUpdates } from "./updates";
-import { t, tBatteryStatus } from "./i18n";
+import { getLanguageInfo, t, tBatteryStatus } from "./i18n";
+import { initLanguage } from "./language";
 import { PROCESS_ROUTE } from "./ProcessPage";
 import { Group } from "./types";
 
@@ -70,6 +71,9 @@ export const Panel: FC = () => {
   const store = useStore();
   const { stats: s, settings: cfg, error } = store;
   const updates = useUpdates();
+  const [, rerender] = useState(0);
+  // The backend language may arrive after the first render: redraw once it does.
+  useEffect(() => { initLanguage().then(() => rerender((n) => n + 1)); }, []);
 
   if (error && !s) {
     return (
@@ -142,6 +146,10 @@ export const Panel: FC = () => {
             onChange={(v) => store.update((c) => ({ ...c, auto_check: v }))}
           />
         </PanelSectionRow>
+        {(() => {
+          const li = getLanguageInfo(); // REQ-509: show what was detected and from where
+          return <Row label={t("language")}>{li.locale}{li.raw ? ` (${li.source}: ${li.raw})` : ""}</Row>;
+        })()}
         {groups().map(({ key, label }) => (
           <PanelSectionRow key={key}>
             <ToggleField

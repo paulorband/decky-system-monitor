@@ -49,6 +49,7 @@ const en = {
   toast_title: "System Monitor update",
   toast_body: "Version {v} is available. Open the plugin to install it.",
   restart_hint: "Installed. If Decky does not restart by itself, reboot the device (or restart plugin_loader in Desktop Mode) to finish.",
+  language: "Language",
   bat_Charging: "Charging",
   bat_Discharging: "Discharging",
   bat_Full: "Full",
@@ -106,6 +107,7 @@ const ptBR: Dict = {
   toast_title: "Atualização do Monitor do Sistema",
   toast_body: "A versão {v} está disponível. Abra o plugin para instalar.",
   restart_hint: "Instalada. Se o Decky não reiniciar sozinho, reinicie o aparelho (ou o plugin_loader no modo desktop) para concluir.",
+  language: "Idioma",
   bat_Charging: "Carregando",
   bat_Discharging: "Descarregando",
   bat_Full: "Cheia",
@@ -161,6 +163,7 @@ const es: Dict = {
   toast_title: "Actualización de Monitor del sistema",
   toast_body: "La versión {v} está disponible. Abre el plugin para instalarla.",
   restart_hint: "Instalada. Si Decky no se reinicia solo, reinicia el equipo (o plugin_loader en el modo escritorio) para terminar.",
+  language: "Idioma",
   bat_Charging: "Cargando",
   bat_Discharging: "Descargando",
   bat_Full: "Completa",
@@ -178,39 +181,53 @@ const PLURALS: Record<Locale, { one: string; other: string }> = {
 export const DICTIONARIES: Record<Locale, Dict> = { en, "pt-BR": ptBR, es };
 export const DEFAULT_LOCALE: Locale = "en";
 
-/** REQ-502. Steam UI language wins; otherwise the browser language; otherwise English. */
-export function resolveLocale(steamLang?: string | null, navLang?: string | null): Locale {
-  if (steamLang) {
-    switch (steamLang.toLowerCase()) {
-      case "brazilian":
-      case "portuguese":
-        return "pt-BR";
-      case "spanish":
-      case "latam":
-        return "es";
-      default:
-        return "en";
-    }
-  }
-  const n = (navLang || "").toLowerCase();
-  if (n.startsWith("pt")) return "pt-BR";
-  if (n.startsWith("es")) return "es";
+/**
+ * Map one language tag to a supported locale. Steam reports names ("brazilian", "latam")
+ * in some places and BCP-47 codes ("pt-BR", "es-419") in others, so accept both.
+ * Anything else is a recognised-but-unsupported language -> English.
+ */
+export function mapLanguage(tag: string): Locale {
+  const t = tag.trim().toLowerCase().replace(/_/g, "-");
+  if (t === "brazilian" || t === "portuguese" || /^pt(-|$)/.test(t)) return "pt-BR";
+  if (t === "spanish" || t === "latam" || /^es(-|$)/.test(t)) return "es";
   return DEFAULT_LOCALE;
 }
 
-let cached: Locale | null = null;
+/** REQ-502. Steam language wins; otherwise the browser language; otherwise English. */
+export function resolveLocale(steamLang?: string | null, navLang?: string | null): Locale {
+  if (steamLang) return mapLanguage(steamLang);
+  return navLang ? mapLanguage(navLang) : DEFAULT_LOCALE;
+}
 
-export function getLocale(): Locale {
-  if (cached) return cached;
+/** Where the language came from, for display and debugging (REQ-509). */
+export interface LanguageInfo {
+  locale: Locale;
+  source: "registry" | "steam-ui" | "browser" | "default";
+  raw: string | null;
+}
+
+let backendLanguage: string | null = null;
+
+/** REQ-509: language read by the backend from Steam's registry.vdf (authoritative). */
+export function setBackendLanguage(raw: string | null | undefined): void {
+  backendLanguage = raw ? raw : null;
+}
+
+export function getLanguageInfo(): LanguageInfo {
+  if (backendLanguage) return { locale: mapLanguage(backendLanguage), source: "registry", raw: backendLanguage };
   let steam: string | undefined;
   try {
     steam = (globalThis as any).LocalizationManager?.m_rgLocalesToUse?.[0];
   } catch { /* ignore */ }
+  if (steam) return { locale: mapLanguage(steam), source: "steam-ui", raw: steam };
   let nav: string | undefined;
   try { nav = (globalThis as any).navigator?.language; } catch { /* ignore */ }
-  const loc = resolveLocale(steam, nav);
-  if (steam) cached = loc; // keep re-checking until Steam reports its language
-  return loc;
+  if (nav) return { locale: mapLanguage(nav), source: "browser", raw: nav };
+  return { locale: DEFAULT_LOCALE, source: "default", raw: null };
+}
+
+export function getLocale(): Locale {
+  return getLanguageInfo().locale;
 }
 
 /** Translate a key; falls back to English, then to the key itself (REQ-501). */
