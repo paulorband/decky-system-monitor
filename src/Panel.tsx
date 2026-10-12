@@ -3,7 +3,7 @@ import { FC, ReactNode, useEffect, useState } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
 import { useUpdates } from "./updates";
-import { getLanguageInfo, t, tBatteryStatus } from "./i18n";
+import { getLanguageInfo, getLanguageSources, t, tBatteryStatus } from "./i18n";
 import { initLanguage } from "./language";
 import { PROCESS_ROUTE } from "./ProcessPage";
 import { Group } from "./types";
@@ -185,9 +185,27 @@ export const Panel: FC = () => {
             onChange={(v) => store.update((c) => ({ ...c, auto_check: v }))}
           />
         </PanelSectionRow>
-        {(() => {
-          const li = getLanguageInfo(); // REQ-509: show what was detected and from where
-          return <Row label={t("language")}>{li.locale}{li.raw ? ` (${li.source}: ${li.raw})` : ""}</Row>;
+        <PanelSectionRow>
+          <DropdownItem
+            label="Idioma / Language" /* fixed and bilingual on purpose (REQ-511) */
+            rgOptions={[
+              { data: "auto", label: t("lang_auto") },
+              { data: "en", label: "English" },
+              { data: "pt-BR", label: "Português (Brasil)" },
+              { data: "es", label: "Español" },
+            ]}
+            selectedOption={cfg.language}
+            onChange={(o) => store.update((c) => ({ ...c, language: o.data }))}
+          />
+        </PanelSectionRow>
+        {cfg.language === "auto" && (() => {
+          const src = getLanguageSources(); // REQ-511: what each source says, for diagnosis
+          return (
+            <Note>
+              {t("lang_sources", { u: src.steamUi ?? "—", r: src.registry ?? "—", b: src.browser ?? "—" })}
+              {` → ${getLanguageInfo().locale}`}
+            </Note>
+          );
         })()}
         {groups().map(({ key, label }) => (
           <PanelSectionRow key={key}>

@@ -5,7 +5,7 @@ Monitor de recursos leve para o [Decky Loader](https://decky.xyz) no Game Mode (
 - CPU (uso, frequência, temperatura), GPU AMD (uso, clock, temp, potência, VRAM), RAM/swap, bateria/consumo, ventoinha
 - Painel no Quick Access
 - **Auto update**: avisa na inicialização quando há versão nova e instala pelo painel (verifica SHA-256; só consulta o GitHub deste repositório; desligável nas configurações). Opcional: canal de **builds de teste** (desligado por padrão, com aviso de risco)
-- Idiomas: English, Português (Brasil), Español — segue o idioma do Steam; padrão English
+- Idiomas: English, Português (Brasil), Español — escolha nas Configurações do plugin ("Idioma / Language"); em Automático tenta seguir o Steam, padrão English
 - **Consumo por processo**: tela dedicada (CPU e RAM), agrupada por jogo via `SteamAppId` (Proton/Wine incluídos), ordenável por CPU ou memória
 - Sem polling quando nada está visível; Python puro, sem dependências
 

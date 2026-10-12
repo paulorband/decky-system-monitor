@@ -1,4 +1,5 @@
 import { callable } from "@decky/api";
+import { setLanguagePreference } from "./i18n";
 import { DEFAULT_SETTINGS, Settings, Stats } from "./types";
 
 const getStats = callable<[], Stats>("get_stats");
@@ -41,7 +42,7 @@ class Store {
   private ensureLoaded() {
     if (!this.loaded) {
       this.loaded = getSettings()
-        .then((s) => { this.settings = s; })
+        .then((s) => { this.settings = s; setLanguagePreference(s.language); })
         .catch(() => { this.error = true; })
         .then(() => this.emit());
     }
@@ -72,8 +73,9 @@ class Store {
   async update(patch: (s: Settings) => Settings) {
     const next = patch(structuredClone(this.settings));
     this.settings = next; // optimistic
+    setLanguagePreference(next.language); // REQ-510: switch immediately
     this.emit();
-    try { this.settings = await setSettings(next); } catch { this.error = true; }
+    try { this.settings = await setSettings(next); setLanguagePreference(this.settings.language); } catch { this.error = true; }
     this.restart();
     this.emit();
   }

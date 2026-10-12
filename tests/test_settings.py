@@ -12,6 +12,11 @@ def test_defaults_and_sanitize():
     assert settings.sanitize({"test_channel": "yes"})["test_channel"] is False
     assert settings.sanitize({"auto_check": False})["auto_check"] is False
     assert settings.sanitize({"auto_check": "no"})["auto_check"] is True
+    assert s["language"] == "auto"  # REQ-510 default
+    for ok in ("en", "pt-BR", "es", "auto"):
+        assert settings.sanitize({"language": ok})["language"] == ok
+    for bad in ("fr", "", None, 3, "PT-BR"):
+        assert settings.sanitize({"language": bad})["language"] == "auto"
     assert "overlay" not in s  # removed feature: stale keys in old files are dropped
     assert settings.sanitize({"overlay": {"enabled": True}}) == settings.DEFAULTS
 

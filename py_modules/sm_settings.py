@@ -4,6 +4,7 @@ import os
 from typing import Any, Dict
 
 INTERVALS = (500, 1000, 2000, 5000)
+LANGUAGES = ("auto", "en", "pt-BR", "es")
 GROUPS = ("cpu", "gpu", "mem", "battery", "fan")
 
 DEFAULTS: Dict[str, Any] = {
@@ -11,6 +12,7 @@ DEFAULTS: Dict[str, Any] = {
     "show": {g: True for g in GROUPS},
     "auto_check": True,
     "test_channel": False,
+    "language": "auto",
 }
 
 
@@ -20,6 +22,8 @@ def sanitize(raw: Any) -> Dict[str, Any]:
         return out
     if raw.get("interval_ms") in INTERVALS:
         out["interval_ms"] = raw["interval_ms"]
+    if raw.get("language") in LANGUAGES:
+        out["language"] = raw["language"]
     if isinstance(raw.get("test_channel"), bool):
         out["test_channel"] = raw["test_channel"]
     if isinstance(raw.get("auto_check"), bool):

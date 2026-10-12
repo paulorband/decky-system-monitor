@@ -16,6 +16,7 @@ export interface Settings {
   interval_ms: number;
   auto_check: boolean;
   test_channel: boolean;
+  language: "auto" | "en" | "pt-BR" | "es";
   show: Record<Group, boolean>;
 }
 
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   interval_ms: 1000,
   auto_check: true,
   test_channel: false,
+  language: "auto",
   show: { cpu: true, gpu: true, mem: true, battery: true, fan: true },
 };
 
