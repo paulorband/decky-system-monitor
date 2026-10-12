@@ -22,3 +22,15 @@ pnpm test              # backend (pytest)
 3. Seção **Desenvolvedor** → **Instalar plugin de um ZIP**.
 
 Release versionada: `git tag v0.1.0-rc1 && git push origin v0.1.0-rc1`.
+
+## Compatibilidade
+
+| Hardware / distro | Estado |
+|---|---|
+| ROG Xbox Ally (AMD) — Bazzite | Validado: todas as funcionalidades |
+| Steam Deck — SteamOS | Não testado (a detecção é por sensores, deve funcionar) |
+| CachyOS Handheld | Não testado |
+| GPU Intel / NVIDIA | Adiado: GPU exibida só para AMD (`amdgpu`); CPU, RAM, bateria e processos funcionam em qualquer hardware |
+
+Relatos de teste em outros aparelhos são bem-vindos (abra uma issue com a distro e o que apareceu/faltou).
+Overlay via gamescope/MangoHud está fora de escopo.
