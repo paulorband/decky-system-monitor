@@ -17,16 +17,21 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 REPO = "paulorband/decky-system-monitor"
 API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
+TEST_TAG = "test-build"
+API_TEST = f"https://api.github.com/repos/{REPO}/releases/tags/{TEST_TAG}"
 DOWNLOAD_PREFIX = f"https://github.com/{REPO}/releases/download/"
 ASSET_NAME = "decky-system-monitor.zip"
 ZIP_ROOT = "decky-system-monitor"
 PLUGIN_NAME = "System Monitor"
-PAYLOAD = ("plugin.json", "package.json", "main.py", "LICENSE", "dist", "py_modules")
+PAYLOAD = ("plugin.json", "package.json", "main.py", "LICENSE", "build.json", "dist", "py_modules")
 MAX_ZIP = 10 * 1024 * 1024
 MAX_UNPACKED = 30 * 1024 * 1024
 TIMEOUT = 10
 CACHE_SECONDS = 6 * 3600
 
+_SHA = re.compile(r"^[0-9a-f]{40}$")
+_BODY_COMMIT = re.compile(r"^commit:\s*([0-9a-f]{40})\s*$", re.M)
+_BODY_VERSION = re.compile(r"^version:\s*(\S+)\s*$", re.M)
 _SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$")
 
 
@@ -56,6 +61,22 @@ def read_version(plugin_dir: str) -> str:
         return v if parse_version(v) else "0.0.0"
     except (OSError, ValueError, AttributeError):
         return "0.0.0"
+
+
+def is_older(a: str, b: str) -> bool:
+    pa, pb = parse_version(a), parse_version(b)
+    return bool(pa and pb and pa[:3] < pb[:3])
+
+
+def read_build(plugin_dir: str) -> Dict[str, Any]:
+    """REQ-652: build.json written by the CI into every zip (absent in old installs)."""
+    try:
+        with open(os.path.join(plugin_dir, "build.json")) as f:
+            d = json.load(f)
+        c = d.get("commit")
+        return {"version": d.get("version"), "commit": c if isinstance(c, str) and _SHA.match(c) else None}
+    except (OSError, ValueError, AttributeError):
+        return {"version": None, "commit": None}
 
 
 # --- network ---
@@ -105,7 +126,27 @@ def fetch_latest(urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
     tag = data.get("tag_name")
     if not parse_version(tag) or data.get("prerelease") or data.get("draft"):
         raise UpdateError("no stable release")
-    info: Dict[str, Any] = {"tag": tag, "version": tag.lstrip("v"), "asset_url": None, "digest": None}
+    info: Dict[str, Any] = {"tag": tag, "version": tag.lstrip("v"), "asset_url": None, "digest": None, "kind": "stable", "commit": None}
+    for a in data.get("assets") or []:
+        url = a.get("browser_download_url") or ""
+        if a.get("name") == ASSET_NAME and url.startswith(DOWNLOAD_PREFIX):
+            info["asset_url"], info["digest"] = url, a.get("digest")
+            break
+    return info
+
+
+def fetch_test(urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
+    """REQ-650/652: the rolling `test-build` prerelease and the commit it was built from."""
+    with _open(API_TEST, urlopen, "application/vnd.github+json") as r:
+        data = json.loads(r.read(1024 * 1024))
+    if data.get("tag_name") != TEST_TAG or data.get("draft"):
+        raise UpdateError("no test build")
+    body = data.get("body") or ""
+    m = _BODY_COMMIT.search(body)
+    commit = m.group(1) if m else (data.get("target_commitish") if _SHA.match(data.get("target_commitish") or "") else None)
+    v = _BODY_VERSION.search(body)
+    version = v.group(1) if v and parse_version(v.group(1)) else None
+    info: Dict[str, Any] = {"tag": TEST_TAG, "version": version, "asset_url": None, "digest": None, "kind": "test", "commit": commit}
     for a in data.get("assets") or []:
         url = a.get("browser_download_url") or ""
         if a.get("name") == ASSET_NAME and url.startswith(DOWNLOAD_PREFIX):
@@ -219,36 +260,69 @@ def apply_package(root: str, plugin_dir: str) -> None:
 
 
 # --- orchestration ---
-def check(plugin_dir: str, urlopen: Callable = urllib.request.urlopen) -> Dict[str, Any]:
-    """REQ-600..603: never raises; errors are reported in the state."""
+def _err(e: Exception) -> str:
+    return f"{type(e).__name__}: {e}"[:200]
+
+
+def resolve(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False):
+    """REQ-600..603, 650..654. Returns (state, info-to-install-or-None); never raises."""
     current = read_version(plugin_dir)
-    state: Dict[str, Any] = {"current": current, "available": False, "checked": True, "checked_at": time.time()}
+    build = read_build(plugin_dir)
+    channel = "test" if test_channel else "stable"
+    state: Dict[str, Any] = {"current": current, "available": False, "checked": True,
+                             "checked_at": time.time(), "channel": channel}
+    errors = []
+    chosen = None
+
+    if test_channel:  # REQ-654: the test build wins when it is new
+        try:
+            t = fetch_test(urlopen)
+            new_commit = bool(t["commit"]) and t["commit"] != build["commit"]
+            not_older = not t["version"] or not is_older(t["version"], current)
+            if t["asset_url"] and new_commit and not_older:
+                chosen = t
+        except Exception as e:
+            errors.append(e)
     try:
-        info = fetch_latest(urlopen)
-        state["latest"] = info["version"]
-        state["available"] = is_newer(info["version"], current) and bool(info["asset_url"])
-    except Exception as e:  # network, JSON, rate limit...
-        state["error"] = f"{type(e).__name__}: {e}"[:200]
-    return state
+        s = fetch_latest(urlopen)
+        state["latest"], state["latest_kind"] = s["version"], "stable"
+        if chosen is None and s["asset_url"] and is_newer(s["version"], current):
+            chosen = s
+    except Exception as e:
+        errors.append(e)
+
+    if chosen:
+        state["available"] = True
+        state["latest"] = chosen["version"] or current
+        state["latest_kind"] = chosen["kind"]
+        if chosen["kind"] == "test":
+            state["commit"] = chosen["commit"][:7]
+    elif errors and ("latest" not in state):
+        state["error"] = _err(errors[0])  # REQ-602: nothing could be checked
+    return state, chosen
 
 
-def install(plugin_dir: str, urlopen: Callable = urllib.request.urlopen) -> str:
-    """REQ-630: refetch, require newer, download, verify, validate, apply. Returns new version."""
+def check(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False) -> Dict[str, Any]:
+    return resolve(plugin_dir, urlopen, test_channel)[0]
+
+
+def install(plugin_dir: str, urlopen: Callable = urllib.request.urlopen, test_channel: bool = False) -> str:
+    """REQ-630/655: refetch, require something new, download, verify, validate, apply. Returns the version."""
     if not os.access(plugin_dir, os.W_OK) or not os.access(os.path.dirname(os.path.abspath(plugin_dir)), os.W_OK):
         raise UpdateError("plugin folder is not writable: the backend must run as root (plugin.json flags)")
-    current = read_version(plugin_dir)
-    info = fetch_latest(urlopen)
-    if not is_newer(info["version"], current):
-        raise UpdateError("already up to date")
+    state, info = resolve(plugin_dir, urlopen, test_channel)
+    if info is None:
+        raise UpdateError(state.get("error") or "already up to date")
     data = download_verified(info, urlopen)
     tmp = tempfile.mkdtemp(prefix="sysmon-upd-")
     try:
         root = safe_extract(data, tmp)
-        validate(root, info["version"])
+        # stable: the package must be exactly the release; test: only well-formed
+        validate(root, info["version"] if info["kind"] == "stable" else None)
         apply_package(root, plugin_dir)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    return info["version"]
+    return info["version"] or read_version(plugin_dir)
 
 
 def clean_env(env=None) -> Dict[str, str]:

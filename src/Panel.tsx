@@ -1,4 +1,4 @@
-import { ButtonItem, DropdownItem, Field, Navigation, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
+import { ButtonItem, ConfirmModal, DropdownItem, Field, Navigation, PanelSection, PanelSectionRow, ToggleField, showModal } from "@decky/ui";
 import { FC, ReactNode, useEffect, useState } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
@@ -32,17 +32,22 @@ const groups = (): { key: Group; label: string }[] => [
 
 const UpdateSection: FC<{ u: ReturnType<typeof useUpdates> }> = ({ u }) => {
   const { state, busy, message, check, install } = u;
+  const isTest = state?.latest_kind === "test";
   return (
     <PanelSection title={t("section_updates")}>
       <Row label={t("current_version")}>{state ? `v${state.current}` : "—"}</Row>
-      {state?.available && <Row label={t("latest_version")} color="#4caf50">v{state.latest}</Row>}
+      {state?.available && (
+        <Row label={t("latest_version")} color={isTest ? "#ffb300" : "#4caf50"}>
+          v{state.latest}{isTest && state.commit ? ` · ${t("test_label", { c: state.commit })}` : ""}
+        </Row>
+      )}
       {state?.checked && !state.available && !state.error && <Row label={t("status")}>{t("up_to_date")}</Row>}
       {state && !state.checked && <Row label={t("status")}>{t("not_checked")}</Row>}
       {message && <Row label={t("status")}>{message}</Row>}
       <PanelSectionRow>
         {state?.available ? (
           <ButtonItem layout="below" disabled={busy !== null} onClick={install}>
-            {busy === "install" ? t("installing") : t("install_update", { v: `v${state.latest}` })}
+            {busy === "install" ? t("installing") : t(isTest ? "install_test" : "install_update", { v: `v${state.latest}` })}
           </ButtonItem>
         ) : (
           <ButtonItem layout="below" disabled={busy !== null} onClick={check}>
@@ -139,6 +144,26 @@ export const Panel: FC = () => {
             onChange={(o) => store.update((c) => ({ ...c, interval_ms: o.data }))}
           />
         </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField
+            label={t("test_channel")}
+            checked={cfg.test_channel}
+            onChange={(v) => {
+              if (!v) { store.update((c) => ({ ...c, test_channel: false })).then(() => updates.check()); return; }
+              // REQ-651: turning it ON needs an explicit, controller-friendly confirmation.
+              showModal(
+                <ConfirmModal
+                  strTitle={t("test_enable_title")}
+                  strDescription={t("test_channel_warning")}
+                  strOKButtonText={t("test_enable_ok")}
+                  strCancelButtonText={t("test_enable_cancel")}
+                  onOK={() => { store.update((c) => ({ ...c, test_channel: true })).then(() => updates.check()); }}
+                />
+              );
+            }}
+          />
+        </PanelSectionRow>
+        {cfg.test_channel && <Row label="⚠" color="#ffb300">{t("test_channel_warning")}</Row>}
         <PanelSectionRow>
           <ToggleField
             label={t("auto_check")}

@@ -10,6 +10,7 @@ DEFAULTS: Dict[str, Any] = {
     "interval_ms": 1000,
     "show": {g: True for g in GROUPS},
     "auto_check": True,
+    "test_channel": False,
 }
 
 
@@ -19,6 +20,8 @@ def sanitize(raw: Any) -> Dict[str, Any]:
         return out
     if raw.get("interval_ms") in INTERVALS:
         out["interval_ms"] = raw["interval_ms"]
+    if isinstance(raw.get("test_channel"), bool):
+        out["test_channel"] = raw["test_channel"]
     if isinstance(raw.get("auto_check"), bool):
         out["auto_check"] = raw["auto_check"]
     show = raw.get("show")

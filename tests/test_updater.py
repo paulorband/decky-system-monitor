@@ -42,9 +42,13 @@ class Resp:
         pass
 
 
-def fake_urlopen(release=None, zip_bytes=b""):
+def fake_urlopen(release=None, zip_bytes=b"", test_release=None):
     def _open(req, timeout=None, context=None):
         url = req.full_url
+        if url == updater.API_TEST:
+            if test_release is None:
+                raise OSError("404")
+            return Resp(json.dumps(test_release).encode())
         if url == updater.API_LATEST:
             if release is None:
                 raise OSError("offline")
@@ -267,3 +271,128 @@ def test_restart_is_detached_logged_and_clean_REQ636(monkeypatch):
     assert "LD_LIBRARY_PATH" not in seen["kw"]["env"]
     assert seen["args"][-1] == "/logs/restart.log"  # log path passed as $1, never interpolated
     assert "systemctl restart plugin_loader" in seen["args"][2] and "sleep 2" in seen["args"][2]
+
+
+# ---------------- test channel (REQ-650..656) ----------------
+SHA_A, SHA_B = "a" * 40, "b" * 40
+
+
+def make_test_release(zip_bytes, commit=SHA_B, version="0.2.0", **kw):
+    r = {
+        "tag_name": updater.TEST_TAG, "prerelease": True, "draft": False,
+        "body": f"version: {version}\ncommit: {commit}\n\nAutomatic TEST build", "target_commitish": commit,
+        "assets": [{
+            "name": updater.ASSET_NAME,
+            "browser_download_url": updater.DOWNLOAD_PREFIX + f"{updater.TEST_TAG}/{updater.ASSET_NAME}",
+            "digest": "sha256:" + hashlib.sha256(zip_bytes).hexdigest(),
+        }],
+    }
+    r.update(kw)
+    return r
+
+
+
+
+def set_build(d, commit, version="0.1.1"):
+    with open(os.path.join(d, "build.json"), "w") as f:
+        json.dump({"version": version, "commit": commit}, f)
+
+
+def test_test_build_ignored_when_channel_off_REQ654(tmp_path):
+    d = installed(tmp_path)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1"), z, test_release=make_test_release(z, version="0.9.0"))
+    st = updater.check(d, uo)  # default: stable only
+    assert not st["available"] and st["channel"] == "stable"
+
+
+def test_new_test_build_offered_when_commit_differs_REQ653(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1"), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    st = updater.check(d, uo, test_channel=True)
+    assert st["available"] and st["latest_kind"] == "test" and st["commit"] == SHA_B[:7] and st["channel"] == "test"
+
+
+def test_same_commit_is_up_to_date_REQ653(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_B)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1"), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    assert not updater.check(d, uo, test_channel=True)["available"]
+
+
+def test_older_test_version_is_not_offered_REQ653(tmp_path):
+    d = installed(tmp_path, version="0.3.0")
+    set_build(d, SHA_A, "0.3.0")
+    z = make_zip(good_files("0.2.0"))
+    uo = fake_urlopen(release(z, tag="v0.2.0"), z, test_release=make_test_release(z, commit=SHA_B, version="0.2.0"))
+    assert not updater.check(d, uo, test_channel=True)["available"]  # no regression
+
+
+def test_unknown_installed_commit_offers_test_build_REQ653(tmp_path):
+    d = installed(tmp_path)  # no build.json (old install)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1"), z, test_release=make_test_release(z, version="0.1.1"))
+    assert updater.check(d, uo, test_channel=True)["available"]
+
+
+def test_newer_stable_when_no_new_test_build_REQ654(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_B)
+    z = make_zip(good_files("0.5.0"))
+    uo = fake_urlopen(release(z, tag="v0.5.0"), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    st = updater.check(d, uo, test_channel=True)
+    assert st["available"] and st["latest_kind"] == "stable" and st["latest"] == "0.5.0"
+
+
+def test_test_build_missing_does_not_break_stable_REQ654(tmp_path):
+    d = installed(tmp_path)
+    z = make_zip(good_files("0.2.0"))
+    st = updater.check(d, fake_urlopen(release(z), z, test_release=None), test_channel=True)  # test-build 404
+    assert st["available"] and st["latest_kind"] == "stable" and "error" not in st
+
+
+def test_install_test_build_applies_and_records_commit_REQ655(tmp_path):
+    d = installed(tmp_path)
+    set_build(d, SHA_A)
+    files = good_files("0.1.1")
+    files["build.json"] = json.dumps({"version": "0.1.1", "commit": SHA_B})
+    z = make_zip(files)
+    uo = fake_urlopen(release(z, tag="v0.1.1"), z, test_release=make_test_release(z, commit=SHA_B, version="0.1.1"))
+    assert updater.install(d, uo, test_channel=True) == "0.1.1"
+    assert updater.read_build(d)["commit"] == SHA_B
+    assert open(os.path.join(d, "main.py")).read() == "# new"
+    assert not updater.check(d, uo, test_channel=True)["available"]  # now up to date
+
+
+def test_test_build_still_needs_digest_and_valid_package_REQ655(tmp_path):
+    d = installed(tmp_path)
+    z = make_zip(good_files("0.1.1"))
+    t = make_test_release(z, version="0.1.1")
+    t["assets"][0]["digest"] = None
+    with pytest.raises(UpdateError, match="digest"):
+        updater.install(d, fake_urlopen(release(z, tag="v0.1.1"), z, test_release=t), test_channel=True)
+    bad = make_zip({**good_files("0.1.1"), "plugin.json": json.dumps({"name": "Other"})})
+    with pytest.raises(UpdateError):
+        updater.install(d, fake_urlopen(release(bad, tag="v0.1.1"), bad, test_release=make_test_release(bad, version="0.1.1")), test_channel=True)
+    assert open(os.path.join(d, "main.py")).read() == "# old"
+
+
+def test_install_stable_refuses_when_only_test_exists_REQ654(tmp_path):
+    d = installed(tmp_path)
+    z = make_zip(good_files("0.1.1"))
+    uo = fake_urlopen(release(z, tag="v0.1.1"), z, test_release=make_test_release(z, version="9.9.9"))
+    with pytest.raises(UpdateError, match="up to date"):
+        updater.install(d, uo)  # channel off: never installs the test build
+
+
+def test_read_build_robust(tmp_path):
+    d = installed(tmp_path)
+    assert updater.read_build(d) == {"version": None, "commit": None}
+    with open(os.path.join(d, "build.json"), "w") as f:
+        f.write("{not json")
+    assert updater.read_build(d)["commit"] is None
+    set_build(d, "short")
+    assert updater.read_build(d)["commit"] is None  # not a full sha

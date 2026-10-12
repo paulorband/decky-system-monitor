@@ -59,4 +59,4 @@ jobs:
           gh release create test-build release/decky-system-monitor.zip \
             --prerelease --target "$GITHUB_SHA" \
             --title "Test build ($GITHUB_REF_NAME @ ${GITHUB_SHA::7})" \
-            --notes "Automatic test build from \`$GITHUB_REF_NAME\` at $GITHUB_SHA. Not a stable release."
+            --notes "$(printf 'version: %s\ncommit: %s\n\nAutomatic TEST build from `%s`. Not a stable release: may contain bugs.' "$(node -p "require('./package.json').version")" "$GITHUB_SHA" "$GITHUB_REF_NAME")"

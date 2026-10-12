@@ -7,6 +7,9 @@ import { Settings } from "./types";
 export interface UpdateState {
   current: string;
   latest?: string;
+  latest_kind?: "stable" | "test";
+  commit?: string;
+  channel?: "stable" | "test";
   available: boolean;
   checked: boolean;
   error?: string;
@@ -25,7 +28,12 @@ export async function startupUpdateCheck(): Promise<void> {
     if (!cfg.auto_check) return; // REQ-604
     const st = await checkUpdate(false);
     if (st.available && st.latest) {
-      toaster.toast({ title: t("toast_title"), body: t("toast_body", { v: `v${st.latest}` }), duration: 10000 });
+      const test = st.latest_kind === "test";
+      toaster.toast({
+        title: t("toast_title"),
+        body: t(test ? "toast_body_test" : "toast_body", { v: `v${st.latest}` }),
+        duration: 10000,
+      });
     }
   } catch { /* offline / backend not ready */ }
 }

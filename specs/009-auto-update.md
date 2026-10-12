@@ -35,6 +35,15 @@ Verifica novas versões ao iniciar, avisa o usuário e permite instalar pela tel
 ### Publicação (CI)
 - **REQ-640** O workflow de release falha se a tag não for igual a `v` + versão do `package.json` (evita oferecer a mesma versão para sempre).
 
+### Canal de teste (opt-in)
+- **REQ-650** Configuração `test_channel` (padrão: **desligada**). Ligada, o plugin também considera o pré-release rolante `test-build` (último commit da branch de desenvolvimento), além das releases estáveis.
+- **REQ-651 Aviso de risco**: ligar o canal exige confirmação em modal (`ConfirmModal`, navegável por controle) explicando que builds de teste não foram publicadas, podem conter erros, podem deixar o plugin inoperante e não têm reversão automática. Cancelar mantém desligado. Desligar é imediato. Com o canal ligado, uma linha de aviso permanece nas configurações.
+- **REQ-652 Identidade do build**: o CI grava `build.json` (`version`, `commit`) em todo zip. O plugin instalado conhece seu commit por esse arquivo; o commit do `test-build` vem do corpo da release (`commit: <sha>`, com `target_commitish` como alternativa).
+- **REQ-653 Há build de teste novo** se o commit difere do instalado **e** a versão do build não é *menor* que a instalada (evita regressão para versão mais antiga). Sem `build.json` (instalação antiga), assume-se commit desconhecido → oferece.
+- **REQ-654** Com o canal ligado vale o melhor dos dois: se houver build de teste novo, ele é oferecido; senão, uma release estável mais nova (REQ-601). Com o canal desligado o `test-build` é **ignorado**.
+- **REQ-655** Mesma segurança da instalação estável (origem, SHA-256, zip seguro, validação, rollback, REQ-630…639). O backend lê `test_channel` das **suas** configurações, nunca de parâmetro do frontend.
+- **REQ-656** UI: o build de teste é rotulado ("v0.2.5 · teste ab12cd3", em âmbar), o botão diz "Instalar build de teste", e o toast de inicialização também diz que é um build de teste. Mudar o canal força nova verificação.
+
 ## Limitações conhecidas
 - A reinicialização do Decky recarrega a interface; o mecanismo (`plugin_loader.service`) é o do Decky em SteamOS/Bazzite/CachyOS, mas só foi planejado para validação em hardware (T9-bis).
 - Repositório privado ou sem rede: não há atualização.
