@@ -3,7 +3,7 @@ import { FC, ReactNode } from "react";
 import { mb, mhz, pct, temp, tempColor, usageColor, watts } from "./format";
 import { useStore } from "./hooks";
 import { useUpdates } from "./updates";
-import { getLanguageInfo, getLanguageSources, t, tBatteryStatus } from "./i18n";
+import { t, tBatteryStatus } from "./i18n";
 import { PROCESS_ROUTE } from "./ProcessPage";
 import { Group } from "./types";
 
@@ -194,15 +194,6 @@ export const Panel: FC = () => {
             onChange={(o) => store.update((c) => ({ ...c, language: o.data }))}
           />
         </PanelSectionRow>
-        {cfg.language === "auto" && (() => {
-          const src = getLanguageSources(); // REQ-511: what each source says, for diagnosis
-          return (
-            <Note>
-              {t("lang_sources", { u: src.steamUi ?? "—", b: src.browser ?? "—" })}
-              {` → ${getLanguageInfo().locale}`}
-            </Note>
-          );
-        })()}
         {groups().map(({ key, label }) => (
           <PanelSectionRow key={key}>
             <ToggleField
